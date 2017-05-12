@@ -1,8 +1,8 @@
 var restify = require('restify');
 var fs = require('fs');
 
-var xLast = 0;
-var yLast = 0;
+var xLast = null;
+var yLast = null;
 const PORT = 4321;
 
 function sendCoords(req, res, next) {
@@ -21,14 +21,22 @@ function receiveCoords(req, res, next) {
   	next();
 }
 
+function echo(req, res, next) {
+	res.send(200);
+	console.log('echo');
+	next();
+}
+
 var server = restify.createServer({
 	certificate: fs.readFileSync('cert.pem'),
 	key: fs.readFileSync('key.pem'),
 	name: 'Core-Server'
 });
+
 server.use(restify.bodyParser({mapParams: true}));
 server.get('/coordinate', sendCoords);
 server.post('/coordinate', receiveCoords);
+server.get('/echo', echo);
 
 server.listen(PORT, function() {
   	console.log('%s listening at %s', server.name, server.url);
