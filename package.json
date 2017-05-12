@@ -1,0 +1,17 @@
+{
+  "name": "core-server",
+  "description": "Intermediary between eye tracking input and chrome extension",
+  "author": "",
+  "contributors": "N/A",
+  "repository": "N/A",
+  "bugs": "",
+  "keywords": [],
+  "version": "0.0.1",
+  "scripts": {
+    "cleanwin": "rmdir typings /s /q & rmdir node_modules /s /q & exit 0",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "restify": "^4.0.3"
+  }
+}
