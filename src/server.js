@@ -1,8 +1,10 @@
 var restify = require('restify');
 var fs = require('fs');
 
-var xLast = null;
-var yLast = null;
+var lastX = null;
+var lastY = null;
+var lastHref = null;
+var lastTitle = null;
 const PORT = 4321;
 
 function echo(req, res, next) {
@@ -12,26 +14,44 @@ function echo(req, res, next) {
 }
 
 function sendCoords(req, res, next) {
-	if(xLast == null || yLast == null) {
+	if(lastX == null || lastY == null) {
 		res.send(404);
 	} else {
-		res.json(200, {'x': xLast, 'y': yLast});
+		res.json(200, {'x': lastX, 'y': lastY});
 	}
   	next();
 }
 
 function receiveCoords(req, res, next) {
-  	xLast = req.body['x'];
-  	yLast = req.body['y'];
+  	lastX = req.body['x'];
+  	lastY = req.body['y'];
   	res.send(200);
   	next();
 }
 
 function receiveData(req, res, next) {
 	// Do something with it
+	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== lastHref) {
+		if(lastHref !== null) {
+			console.log(pageChangeObject(lastTitle, req.body['pageTitle'], lastHref, req.body['pageHref'], req.body['interactionStart']));
+		}
+		lastHref = req.body['pageHref'];
+		lastTitle = req.body['pageTitle'];
+	}
 	console.log(req.body);
 	res.send(200);
 	next();
+}
+
+function pageChangeObject(oldTitle, newTitle, oldHref, newHref, timestamp) {
+	return {
+		'type': 'Page Change',
+		'oldTitle': oldTitle,
+		'newTitle': newTitle,
+		'oldHref': oldHref,
+		'newHref': newHref,
+		'timestamp': timestamp
+	};
 }
 
 var server = restify.createServer({
