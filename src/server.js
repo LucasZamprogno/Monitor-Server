@@ -33,7 +33,7 @@ function receiveData(req, res, next) {
 	// Do something with it
 	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== lastHref) {
 		if(lastHref !== null) {
-			console.log(pageChangeObject(lastTitle, req.body['pageTitle'], lastHref, req.body['pageHref'], req.body['interactionStart']));
+			console.log(pageChangeObject(lastTitle, req.body['pageTitle'], lastHref, req.body['pageHref'], req.body['timestamp']));
 		}
 		lastHref = req.body['pageHref'];
 		lastTitle = req.body['pageTitle'];
