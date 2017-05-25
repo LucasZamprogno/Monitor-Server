@@ -23,6 +23,13 @@ function sendCoords(req, res, next) {
 }
 
 function receiveCoords(req, res, next) {
+  	lastX = req.params['x'];
+  	lastY = req.params['y'];
+  	res.send(200);
+  	next();
+}
+
+function receiveCoordsM(req, res, next) {
   	lastX = req.body['x'];
   	lastY = req.body['y'];
   	res.send(200);
@@ -56,7 +63,7 @@ function pageChangeObject(oldTitle, newTitle, oldHref, newHref, timestamp) {
 
 var server = restify.createServer({
 	certificate: fs.readFileSync('cert.pem'),
-	key: fs.readFileSync('key.pem'),
+	key: fs.readFileSync('cert.key'),
 	name: 'Core-Server'
 });
 
@@ -64,6 +71,7 @@ server.use(restify.bodyParser({mapParams: true}));
 server.get('/echo', echo);
 server.get('/coordinate', sendCoords);
 server.post('/coordinate', receiveCoords);
+server.post('/coordinateM', receiveCoordsM);
 server.post('/data', receiveData);
 
 server.listen(PORT, function() {
