@@ -55,12 +55,13 @@ function receiveData(req, res, next) {
 	// Do something with it
 	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== sessions[id]['lastHref']) {
 		if(sessions[id]['lastHref'] !== null) {
-			sessions[id]['outputStream'].write(pageChangeObject(sessions[id]['lastTitle'], req.body['pageTitle'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']));
+			var out = pageChangeObject(sessions[id]['lastTitle'], req.body['pageTitle'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']);
+			sessions[id]['outputStream'].write(JSON.stringify(out));
 		}
 		sessions[id]['lastHref'] = req.body['pageHref'];
 		sessions[id]['lastTitle'] = req.body['pageTitle'];
 	}
-	sessions[id]['outputStream'].write(req.body);
+	sessions[id]['outputStream'].write(JSON.stringify(req.body));
 	res.send(200);
 	next();
 }
