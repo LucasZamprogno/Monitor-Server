@@ -11,14 +11,14 @@ function echo(req, res, next) {
 }
 
 function sendCoords(req, res, next) {
-	var id = req.params['id'];
+	var id = req.getQuery().split('=')[1];
 	if(!sessions[id]) {
-		newSessionObject(id);
+		sessions[id] = newSessionObject(id);
 	}
 	if(sessions[id]['lastX'] == null || sessions[id]['lastY'] == null || sessions[id]['lastTimestamp'] == null) {
 		res.send(404);
 	} else {
-		res.json(200, {'x': lastX, 'y': lastY, 'timestamp': lastTimestamp});
+		res.json(200, {'x': sessions[id]['lastX'], 'y': sessions[id]['lastY'], 'timestamp': sessions[id]['lastTimestamp']});
 	}
   	next();
 }
@@ -26,7 +26,7 @@ function sendCoords(req, res, next) {
 function receiveCoords(req, res, next) {
 	var id = req.params['id'];
 	if(!sessions[id]) {
-		newSessionObject(id);
+		sessions[id] = newSessionObject(id);
 	}
   	sessions[id]['lastX'] = req.params['x'];
   	sessions[id]['lastY'] = req.params['y'];
@@ -38,7 +38,7 @@ function receiveCoords(req, res, next) {
 function receiveCoordsM(req, res, next) {
 	var id = req.body['id'];
 	if(!sessions[id]) {
-		newSessionObject(id);
+		sessions[id] = newSessionObject(id);
 	}
   	sessions[id]['lastX'] = req.body['x'];
   	sessions[id]['lastY'] = req.body['y'];
@@ -48,9 +48,10 @@ function receiveCoordsM(req, res, next) {
 }
 
 function receiveData(req, res, next) {
-	var id = req.params['id'];
+	console.log('got here');
+	var id = req.body['id'];
 	if(!sessions[id]) { // Really this should never hapen
-		newSessionObject(id);
+		sessions[id] = newSessionObject(id);
 	}
 	// Do something with it
 	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== sessions[id]['lastHref']) {
@@ -61,7 +62,8 @@ function receiveData(req, res, next) {
 		sessions[id]['lastHref'] = req.body['pageHref'];
 		sessions[id]['lastTitle'] = req.body['pageTitle'];
 	}
-	sessions[id]['outputStream'].write(JSON.stringify(req.body));
+	console.log('before write');
+	sessions[id]['outputStream'].write(JSON.stringify(req.body) + '\r\n');
 	res.send(200);
 	next();
 }
@@ -89,9 +91,11 @@ function newSessionObject(id) {
 }
 
 function setupOutput(id) {
+	console.log('setupOutput');
 	var path = './data/' + id + '.txt';
 	if(!fs.existsSync(path)) {
-		fs.closeSync(fs.openSync(path, 'w'));
+		console.log('file create');
+		fs.writeFileSync(path, 'File start \r\n', 'utf8');
 	}
 	return fs.createWriteStream(path, {flags: 'a'});
 }
