@@ -1,11 +1,15 @@
 var restify = require('restify');
 var fs = require('fs');
+const PORT = 4321;
 
+// For coordinate data
 var lastX = null;
 var lastY = null;
+var lastTimestamp = null;
+
+// For page change events
 var lastHref = null;
 var lastTitle = null;
-const PORT = 4321;
 
 function echo(req, res, next) {
 	res.send(200);
@@ -14,10 +18,10 @@ function echo(req, res, next) {
 }
 
 function sendCoords(req, res, next) {
-	if(lastX == null || lastY == null) {
+	if(lastX == null || lastY == null || lastTimestamp == null) {
 		res.send(404);
 	} else {
-		res.json(200, {'x': lastX, 'y': lastY});
+		res.json(200, {'x': lastX, 'y': lastY, 'timestamp': lastTimestamp});
 	}
   	next();
 }
@@ -25,6 +29,7 @@ function sendCoords(req, res, next) {
 function receiveCoords(req, res, next) {
   	lastX = req.params['x'];
   	lastY = req.params['y'];
+  	lastTimestamp = req.params['timestamp'];
   	res.send(200);
   	next();
 }
@@ -32,6 +37,7 @@ function receiveCoords(req, res, next) {
 function receiveCoordsM(req, res, next) {
   	lastX = req.body['x'];
   	lastY = req.body['y'];
+  	lastTimestamp = req.body['timestamp'];
   	res.send(200);
   	next();
 }
