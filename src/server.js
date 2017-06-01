@@ -1,6 +1,7 @@
 var restify = require('restify');
 var fs = require('fs');
 const PORT = 4321;
+const PATH = './Data';
 
 var sessions = {};
 
@@ -48,7 +49,6 @@ function receiveCoordsM(req, res, next) {
 }
 
 function receiveData(req, res, next) {
-	console.log('got here');
 	var id = req.body['id'];
 	if(!sessions[id]) { // Really this should never hapen
 		sessions[id] = newSessionObject(id);
@@ -62,7 +62,6 @@ function receiveData(req, res, next) {
 		sessions[id]['lastHref'] = req.body['pageHref'];
 		sessions[id]['lastTitle'] = req.body['pageTitle'];
 	}
-	console.log('before write');
 	sessions[id]['outputStream'].write(JSON.stringify(req.body) + '\r\n');
 	res.send(200);
 	next();
@@ -91,13 +90,14 @@ function newSessionObject(id) {
 }
 
 function setupOutput(id) {
-	console.log('setupOutput');
-	var path = './data/' + id + '.txt';
-	if(!fs.existsSync(path)) {
-		console.log('file create');
-		fs.writeFileSync(path, 'File start \r\n', 'utf8');
+	var filepath = PATH + '/' + id + '.txt';
+	if(!fs.existsSync(filepath)) {
+		if(!fs.existsSync(PATH)) {
+			fs.mkdirSync(PATH);
+		}
+		fs.writeFileSync(filepath, 'File start \r\n', 'utf8');
 	}
-	return fs.createWriteStream(path, {flags: 'a'});
+	return fs.createWriteStream(filepath, {flags: 'a'});
 }
 
 var server = restify.createServer({name: 'Home-Server'});
