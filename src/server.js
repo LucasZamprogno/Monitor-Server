@@ -100,11 +100,7 @@ function setupOutput(id) {
 	return fs.createWriteStream(path, {flags: 'a'});
 }
 
-var server = restify.createServer({
-	certificate: fs.readFileSync('cert.pem'),
-	key: fs.readFileSync('cert.key'),
-	name: 'Core-Server'
-});
+var server = restify.createServer({name: 'Home-Server'});
 
 server.use(restify.bodyParser({mapParams: true}));
 server.get('/echo', echo);
