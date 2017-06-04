@@ -20,12 +20,12 @@ function receiveData(req, res, next) {
 	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== sessions[id]['lastHref']) {
 		if(sessions[id]['lastHref'] !== null) {
 			var out = pageChangeObject(sessions[id]['lastTitle'], req.body['pageTitle'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']);
-			sessions[id]['outputStream'].write(JSON.stringify(out));
+			save(id, out);
 		}
 		sessions[id]['lastHref'] = req.body['pageHref'];
 		sessions[id]['lastTitle'] = req.body['pageTitle'];
 	}
-	sessions[id]['outputStream'].write(JSON.stringify(req.body) + '\r\n');
+	save(id, req.body);
 	res.send(200);
 	next();
 }
@@ -58,6 +58,14 @@ function setupOutput(id) {
 		fs.writeFileSync(filepath, 'File start \r\n', 'utf8');
 	}
 	return fs.createWriteStream(filepath, {flags: 'a'});
+}
+
+function save(id, data) {
+	try {
+		sessions[id]['outputStream'].write(JSON.stringify(data) + '\r\n');
+	} catch (e) {
+		console.log(e);
+	}
 }
 
 var server = restify.createServer({name: 'Home-Server'});
