@@ -13,7 +13,7 @@ function echo(req, res, next) {
 
 function receiveData(req, res, next) {
 	var id = req.body['id'];
-	if(!sessions[id]) { // Really this should never hapen
+	if(!sessions[id]) {
 		sessions[id] = newSessionObject(id);
 	}
 	// Check for page focus change
