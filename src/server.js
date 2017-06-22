@@ -55,7 +55,6 @@ function setupOutput(id) {
 		if(!fs.existsSync(PATH)) {
 			fs.mkdirSync(PATH);
 		}
-		fs.writeFileSync(filepath, 'File start \r\n', 'utf8');
 	}
 	return fs.createWriteStream(filepath, {flags: 'a'});
 }
