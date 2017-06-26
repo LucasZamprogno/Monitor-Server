@@ -1,6 +1,7 @@
 var fs = require('fs');
 const PATH = './Data';
 var config = {
+	'ignore': 10,
 	'short': 300,
 	'long': 1000,
 	'code': 500
@@ -31,10 +32,11 @@ if(args.length === 0) {
 			file = file + '.txt';
 		}
 		analyzeFile(file);
+	} else {
+		for(var file of files) {
+			analyzeFile(file);
+		}		
 	}
-	for(var file of files) {
-		analyzeFile(file);
-	}	
 }
 
 function validateArgs() {
@@ -78,10 +80,137 @@ function pullData(file) {
 	for(var line of objs) {
 		fileData[file].push(JSON.parse(line));
 	}
+	return fileData[file];
+}
+
+function removeSmallGazes(arr) {
+	console.log(arr.length);
+	for(var index in arr) {
+		if(arr[index].hasOwnProperty('duration') && arr[index]['duration'] < config['ignore']) {
+			arr.splice(index, 1);
+		}
+	}
+	console.log(arr.length);
+}
+
+// This could be made more generic by making timestamp a parameter. Not sure it would ever be useful
+function sortByStart(arr) {
+	arr.sort(function(a, b) {
+		return a['timestamp'] - b['timestamp'];
+	})
 }
 
 function analyzeFile(filename) {
-	pullData(filename);
+	var rawData = pullData(filename);
+	removeSmallGazes(rawData);
+	sortByStart(rawData);
+	var metaData = getMetaData(rawData);
+	console.log(metaData);
 }
 
-console.log(config);
+function getMetaData(arr) {
+	var metaData = {};
+	var totalTime = arr[arr.length-1]['timestamp'] - arr[0]['timestamp']; // May not be perfect
+	var trackedTime = 0;
+	var totalGazeTime = 0;
+	var totalCodeGazeTime = 0;
+	var untrackedTime = 0;
+	var untrackedDomainTimes = {}
+	var untrackedDomains = [];
+	var pageChanges = 0;
+	var fileTimes = {}; // Add this when reporting filenames
+	var codeTimes = {
+		'addition': 0,
+		'deletion': 0,
+		'unchanged': 0
+	};
+	var domainTimes = {
+		'github': 0,
+		'bitbucket': 0,
+		'stackoverflow': 0,
+		'google': 0
+	};
+	for(var obj of arr) {
+		switch(obj['type']) {
+			case 'gaze':
+				var duration = obj['duration'];
+				trackedTime += duration;
+				if(obj['target'] === 'Code') {// Change to 'code'
+					codeTimes[obj['change']] += duration
+				}
+				var href = obj['pageHref'];
+				if(href.includes('github')) {
+					domainTimes['github'] += duration;
+				} else if(href.includes('bitbucket')) {
+					domainTimes['bitbucket'] += duration;
+				} else if(href.includes('stackoverflow')) {
+					domainTimes['stackoverflow'] += duration;
+				} else if(href.includes('google')) {
+					domainTimes['google'] += duration;
+				}
+				break;
+			case 'pageView':
+				var duration = obj['duration']
+				untrackedTime += duration;
+				var domain = obj['domain'];
+				if(untrackedDomainTimes.hasOwnProperty(domain)) {
+					untrackedDomainTimes[domain] += duration;
+				} else {
+					untrackedDomainTimes[domain] = domain;
+				}
+				break;
+			case 'Page Change': // Change this after playing with old dataset
+			case 'pageChange':
+				pageChanges++;
+				break;
+			case 'setting':
+				break;
+			case 'comment':
+				break;
+		}
+	}
+	totalGazeTime = untrackedTime + trackedTime;
+	for(var type in codeTimes) {
+		totalCodeGazeTime += codeTimes[type];
+	}
+	metaData['totalTime'] = totalTime;
+	metaData['trackedTime'] = trackedTime;
+	metaData['trackedTimePercent'] = Math.round(100 * trackedTime/totalGazeTime)/100;
+	metaData['untrackedTime'] = untrackedTime;
+	metaData['untrackedTimePercent'] = Math.round(100 * untrackedTime/totalGazeTime)/100;
+	for(var domain in domainTimes) {
+		metaData[domain + 'Percent'] = Math.round(100 * domainTimes[domain]/trackedTime)/100;
+	}
+	for(var type in codeTimes) {
+		metaData[type + 'Percent'] = Math.round(100 * codeTimes[type]/totalCodeGazeTime)/100;
+	}
+	metaData['pageChanges'] = pageChanges;
+	metaData['topUntrackedDomains'] = topThree(untrackedDomainTimes);
+	return metaData;
+}
+
+function topThree(obj) {
+	var topThree = [];
+	if(Object.keys(obj).length <= 3) {
+		for(var domain in obj) {
+			topThree.push(domain);
+		}
+		return topThree;
+	}
+	for (var i = 0; i < 3; i++) {
+		var largest = -1;
+		var best = '';
+		for(var domain in obj) {
+			if(obj[domain] > largest && !topThree.includes(domain)) {
+				largest = obj[domain];
+				best = domain;
+			}
+		}
+		topThree.push(best);
+	};
+	return topThree;
+}
+
+function getTimelineData(filename) {
+
+}
