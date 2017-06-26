@@ -32,7 +32,7 @@ function receiveData(req, res, next) {
 
 function pageChangeObject(oldTitle, newTitle, oldHref, newHref, timestamp) {
 	return {
-		'type': 'Page Change',
+		'type': 'pageChange',
 		'oldTitle': oldTitle,
 		'newTitle': newTitle,
 		'oldHref': oldHref,
