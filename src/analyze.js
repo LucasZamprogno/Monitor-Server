@@ -4,7 +4,8 @@ var config = {
 	'ignore': 10,
 	'short': 300,
 	'long': 1000,
-	'code': 500
+	'code': 500,
+	'domains': 3
 };
 var args = process.argv.slice(2);
 var fileData = {};
@@ -73,6 +74,15 @@ function updateConfig() {
 	}
 }
 
+function analyzeFile(filename) {
+	var rawData = pullData(filename);
+	removeSmallGazes(rawData);
+	sortByStart(rawData);
+	analysisData[filename] = {};
+	getMetaData(filename);
+	console.log(analysisData[filename]);
+}
+
 function pullData(file) {
 	fileData[file] = [];
 	var contentSplit = fs.readFileSync(PATH + '/' + file, 'utf8').split('\r\n');
@@ -97,25 +107,18 @@ function removeSmallGazes(arr) {
 function sortByStart(arr) {
 	arr.sort(function(a, b) {
 		return a['timestamp'] - b['timestamp'];
-	})
+	});
 }
 
-function analyzeFile(filename) {
-	var rawData = pullData(filename);
-	removeSmallGazes(rawData);
-	sortByStart(rawData);
-	var metaData = getMetaData(rawData);
-	console.log(metaData);
-}
-
-function getMetaData(arr) {
-	var metaData = {};
+function getMetaData(filename) {
+	var arr = fileData[filename];
+	var metaData = analysisData[filename];
 	var totalTime = arr[arr.length-1]['timestamp'] - arr[0]['timestamp']; // May not be perfect
 	var trackedTime = 0;
 	var totalGazeTime = 0;
 	var totalCodeGazeTime = 0;
 	var untrackedTime = 0;
-	var untrackedDomainTimes = {}
+	var untrackedDomainTimes = {};
 	var untrackedDomains = [];
 	var pageChanges = 0;
 	var fileTimes = {}; // Add this when reporting filenames
@@ -156,7 +159,7 @@ function getMetaData(arr) {
 				if(untrackedDomainTimes.hasOwnProperty(domain)) {
 					untrackedDomainTimes[domain] += duration;
 				} else {
-					untrackedDomainTimes[domain] = domain;
+					untrackedDomainTimes[domain] = duration;
 				}
 				break;
 			case 'Page Change': // Change this after playing with old dataset
@@ -175,40 +178,37 @@ function getMetaData(arr) {
 	}
 	metaData['totalTime'] = totalTime;
 	metaData['trackedTime'] = trackedTime;
-	metaData['trackedTimePercent'] = Math.round(100 * trackedTime/totalGazeTime)/100;
+	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime/totalGazeTime)/1000)*100;
 	metaData['untrackedTime'] = untrackedTime;
-	metaData['untrackedTimePercent'] = Math.round(100 * untrackedTime/totalGazeTime)/100;
+	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime/totalGazeTime)/1000)*100;
 	for(var domain in domainTimes) {
-		metaData[domain + 'Percent'] = Math.round(100 * domainTimes[domain]/trackedTime)/100;
+		metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/1000)*100;
 	}
 	for(var type in codeTimes) {
-		metaData[type + 'Percent'] = Math.round(100 * codeTimes[type]/totalCodeGazeTime)/100;
+		metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/1000)*100;
 	}
 	metaData['pageChanges'] = pageChanges;
-	metaData['topUntrackedDomains'] = topThree(untrackedDomainTimes);
-	return metaData;
+	metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
 }
 
-function topThree(obj) {
-	var topThree = [];
-	if(Object.keys(obj).length <= 3) {
-		for(var domain in obj) {
-			topThree.push(domain);
-		}
-		return topThree;
-	}
-	for (var i = 0; i < 3; i++) {
+function topN(n, obj) {
+	var topN = [];
+	var domains = Object.keys(obj);
+	for (var i = 0; i < n; i++) {
 		var largest = -1;
 		var best = '';
-		for(var domain in obj) {
-			if(obj[domain] > largest && !topThree.includes(domain)) {
-				largest = obj[domain];
-				best = domain;
+		var index = -1;
+		for(var j = 0; j < domains.length; j++) {
+			if(obj[domains[j]] > largest) {
+				largest = obj[domains[j]];
+				best = domains[j];
+				index = j;
 			}
 		}
-		topThree.push(best);
+		topN.push(best);
+		domains.splice(index, 1);
 	};
-	return topThree;
+	return topN;
 }
 
 function getTimelineData(filename) {
