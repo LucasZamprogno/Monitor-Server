@@ -249,15 +249,15 @@ function makeReadableTimeline(data) {
 				break;
 			case 'gazeEnd':
 				str += 'User stopped looking at "' + obj['target'];
-				str += '" after ' + obj['duration'];
-				str += ', on "' + obj['pageTitle'] + '"';
+				str += '", on "' + obj['pageTitle'] + '"';
+				str += ' after ' + Math.round(obj['duration']/10)/100 + ' seconds';
 				break;
 			case 'pageViewStart':
 				str += 'User started looking at "' + obj['domain'] + '"';
 				break;
 			case 'pageViewEnd':
 				str += 'User stopped looking at "' + obj['domain'] + '"';
-				str += ' after ' + obj['duration'];
+				str += ' after ' + Math.round(obj['duration']/10)/100 + ' seconds';
 				break;
 			case 'Page Change': // Change this after playing with old dataset
 			case 'pageChange':
