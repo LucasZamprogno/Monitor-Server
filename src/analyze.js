@@ -8,15 +8,22 @@ var config = {
 	'code': 500, // Right now this isn't used
 	'domains': 3
 };
-var args = process.argv.slice(2);
+var args = process.argv.slice(2); // Cut out node and analyze filepath arguments
 var analysisData = {};
-
-if(!fs.existsSync(PATH_IN)) {
-	console.log('Data folder not found');
+var files;
+// Make sure directory with data exists
+try {
+	if(!fs.existsSync(PATH_IN)) {
+		console.log('Error: ' + PATH_IN + ' directory not found');
+		return;
+	}
+	files = fs.readdirSync(PATH_IN);
+} catch (e) {
+	console.log('Error reading ' + PATH_IN + ' directory');
 	return;
 }
-var files = fs.readdirSync(PATH_IN);
 
+// If no arguments, run analysis for all files
 if(args.length === 0) {
 	for(var file of files) {
 		analyzeFile(file);
@@ -27,37 +34,47 @@ if(args.length === 0) {
 		return;
 	}
 	updateConfig();
-	if(!args[0].includes('=')) {
+	if(!args[0].includes('=')) { // First arg is filename
 		var file = args[0];
 		if(!file.includes('.txt')) {
 			file = file + '.txt';
 		}
 		analyzeFile(file);
-	} else {
+	} else { // No filename, only config options, analyze all files
 		for(var file of files) {
 			analyzeFile(file);
 		}		
 	}
 }
 
+// Ensure format matches 'npm run analyze [filename] [param1=value param2=value ...]'
 function validateArgs() {
 	// First arg can be filename or key=val option
 	if(args[0].split('=').length > 2) {
-			console.log('Invalid parameter assignment');
+			console.log('Error: Invalid parameter assignment');
 			console.log('Usage: npm run analyze [filename] [param1=value param2=value ...]');
 			return false;	
 	}
 	// All following arguments must be key=val options
 	for(var i = 1; i < args.length; i++) {
 		if(args[i].split('=').length !== 2) {
-			console.log('Invalid parameter assignment');
+			console.log('Error: Invalid parameter assignment');
 			console.log('Usage: npm run analyze [filename] [param1=value param2=value ...]');
 			return false;	
 		}
 	}
+	for(var i = 0; i < args.length; i++) {
+		// If they key in key=val is not a config option
+		var key = args[i].split('=')[0];
+		if(args[i].includes('=') && !Object.keys(config).includes(key)) {
+			console.log('Warning: \'' + key + '\' is not a config property and was ignored');
+		}
+		// Property will still be set but never used
+	}
 	return true;
 }
 
+// Update config object using args global
 function updateConfig() {
 	for(var param of args) {
 		if(!param.includes('=')) { // Filename
@@ -74,20 +91,34 @@ function updateConfig() {
 	}
 }
 
+// Load source data, get general information, process data, build timeline
 function analyzeFile(filename) {
 	var rawData = pullData(filename);
+	if(!rawData) {
+		return;
+	}
 	sortByTimestamp(rawData);
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(rawData);
+	// TODO compress gaze events, code viewing
 	analysisData[filename]['timeline'] = getTimelineData(rawData);
 	for(var line of analysisData[filename]['timeline']) {
 		console.log(line);
 	}
+	// TODO save to global
 }
 
+// Load data from file, remove all gazes/pageViews with duration less than config ignore value 
 function pullData(file) {
 	var data = [];
-	var contentSplit = fs.readFileSync(PATH_IN + '/' + file, 'utf8').split('\r\n');
+	try {
+		var contentSplit = fs.readFileSync(PATH_IN + '/' + file, 'utf8').split('\r\n');
+	} catch (e) {
+		console.log('Error trying to read ' + file + ':');
+		console.log(e.message);
+		console.log('Skipping file');
+		return null;
+	}
 	var objs = contentSplit.slice(0, contentSplit.length - 1); // Exclude final newline
 	for(var line of objs) {
 		data.push(JSON.parse(line));
@@ -106,6 +137,7 @@ function sortByTimestamp(arr) {
 	});
 }
 
+// Gets stats on general webpage and code gaze times
 function getMetaData(arr) {
 	var metaData = {};
 	var totalTime = arr[arr.length-1]['timestamp'] - arr[0]['timestamp']; // May not be perfect
@@ -136,6 +168,7 @@ function getMetaData(arr) {
 				if(obj['target'] === 'Code') {// Change to 'code'
 					codeTimes[obj['change']] += duration
 				}
+				// TODO change this once working with a dataset with domain on all items
 				var href = obj['pageHref'];
 				if(href.includes('github')) {
 					domainTimes['github'] += duration;
@@ -187,6 +220,7 @@ function getMetaData(arr) {
 	return metaData;
 }
 
+// Gets up to the top N untracked domains ordered by time spent 
 function topN(n, obj) {
 	var topN = [];
 	var domains = Object.keys(obj);
@@ -207,6 +241,7 @@ function topN(n, obj) {
 	return topN;
 }
 
+// Preprocess data, then get a readable format
 function getTimelineData(data) {
 	var newData = [];
 	for(var obj of data) {
@@ -221,7 +256,7 @@ function getTimelineData(data) {
 	return makeReadableTimeline(newData);
 }
 
-// part should be 'start' or 'end'
+// part should be 'start' or 'end', splits single gazes into start and end points
 function splitPageViewOrGaze(part, obj) {
 	var newObj = {};
 	if(part == 'start') {
@@ -238,6 +273,7 @@ function splitPageViewOrGaze(part, obj) {
 	return newObj;
 }
 
+// Make strings out of event objects that can read like an activity timeline
 function makeReadableTimeline(data) {
 	var timeline = [];
 	for(var obj of data) {
@@ -280,6 +316,7 @@ function makeReadableTimeline(data) {
 }
 
 // From https://stackoverflow.com/questions/6312993/javascript-seconds-to-time-string-with-format-hhmmss
+// Epoch time to HH:MM:SS format
 function epochToTime(epoch) {
 	return new Date(epoch).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
 }
