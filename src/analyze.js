@@ -206,14 +206,14 @@ function getMetaData(arr) {
 	}
 	metaData['totalTime'] = totalTime;
 	metaData['trackedTime'] = trackedTime;
-	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime/totalGazeTime)/1000)*100;
+	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime/totalGazeTime)/10);
 	metaData['untrackedTime'] = untrackedTime;
-	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime/totalGazeTime)/1000)*100;
+	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime/totalGazeTime)/10);
 	for(var domain in domainTimes) {
-		metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/1000)*100;
+		metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/10);
 	}
 	for(var type in codeTimes) {
-		metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/1000)*100;
+		metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/10);
 	}
 	metaData['pageChanges'] = pageChanges;
 	metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
