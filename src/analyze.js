@@ -100,6 +100,7 @@ function analyzeFile(filename) {
 	sortByTimestamp(rawData);
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(rawData);
+	console.log(analysisData[filename]['metadata']);
 	// TODO compress gaze events, code viewing
 	analysisData[filename]['timeline'] = getTimelineData(rawData);
 	for(var line of analysisData[filename]['timeline']) {
@@ -209,14 +210,20 @@ function getMetaData(arr) {
 	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime/totalGazeTime)/10);
 	metaData['untrackedTime'] = untrackedTime;
 	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime/totalGazeTime)/10);
-	for(var domain in domainTimes) {
-		metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/10);
+	if(trackedTime > 0) {
+		for(var domain in domainTimes) {
+			metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/10);
+		}
 	}
-	for(var type in codeTimes) {
-		metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/10);
+	if(totalCodeGazeTime > 0){
+		for(var type in codeTimes) {
+			metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/10);
+		}
 	}
 	metaData['pageChanges'] = pageChanges;
-	metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
+	if(untrackedTime > 0) {
+		metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
+	}
 	return metaData;
 }
 
