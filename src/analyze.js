@@ -1,21 +1,21 @@
 var fs = require('fs');
-const PATH = './Data';
+const PATH_IN = './Data';
+const PATH_OUT = './Analysis'
 var config = {
 	'ignore': 10,
-	'short': 300,
-	'long': 1000,
-	'code': 500,
+	'short': 300, // Right now this isn't used
+	'long': 1000, // Right now this isn't used
+	'code': 500, // Right now this isn't used
 	'domains': 3
 };
 var args = process.argv.slice(2);
-var fileData = {};
 var analysisData = {};
 
-if(!fs.existsSync(PATH)) {
+if(!fs.existsSync(PATH_IN)) {
 	console.log('Data folder not found');
 	return;
 }
-var files = fs.readdirSync(PATH);
+var files = fs.readdirSync(PATH_IN);
 
 if(args.length === 0) {
 	for(var file of files) {
@@ -76,43 +76,38 @@ function updateConfig() {
 
 function analyzeFile(filename) {
 	var rawData = pullData(filename);
-	removeSmallGazes(rawData);
-	sortByStart(rawData);
+	sortByTimestamp(rawData);
 	analysisData[filename] = {};
-	getMetaData(filename);
-	console.log(analysisData[filename]);
+	analysisData[filename]['metadata'] = getMetaData(rawData);
+	analysisData[filename]['timeline'] = getTimelineData(rawData);
+	for(var line of analysisData[filename]['timeline']) {
+		console.log(line);
+	}
 }
 
 function pullData(file) {
-	fileData[file] = [];
-	var contentSplit = fs.readFileSync(PATH + '/' + file, 'utf8').split('\r\n');
+	var data = [];
+	var contentSplit = fs.readFileSync(PATH_IN + '/' + file, 'utf8').split('\r\n');
 	var objs = contentSplit.slice(0, contentSplit.length - 1); // Exclude final newline
 	for(var line of objs) {
-		fileData[file].push(JSON.parse(line));
+		data.push(JSON.parse(line));
 	}
-	return fileData[file];
+	return data.filter(removeSmallGazes);
 }
 
-function removeSmallGazes(arr) {
-	console.log(arr.length);
-	for(var index in arr) {
-		if(arr[index].hasOwnProperty('duration') && arr[index]['duration'] < config['ignore']) {
-			arr.splice(index, 1);
-		}
-	}
-	console.log(arr.length);
+function removeSmallGazes(obj) {
+	return !obj.hasOwnProperty('duration') || obj['duration'] > config['ignore'];
 }
 
 // This could be made more generic by making timestamp a parameter. Not sure it would ever be useful
-function sortByStart(arr) {
+function sortByTimestamp(arr) {
 	arr.sort(function(a, b) {
 		return a['timestamp'] - b['timestamp'];
 	});
 }
 
-function getMetaData(filename) {
-	var arr = fileData[filename];
-	var metaData = analysisData[filename];
+function getMetaData(arr) {
+	var metaData = {};
 	var totalTime = arr[arr.length-1]['timestamp'] - arr[0]['timestamp']; // May not be perfect
 	var trackedTime = 0;
 	var totalGazeTime = 0;
@@ -189,6 +184,7 @@ function getMetaData(filename) {
 	}
 	metaData['pageChanges'] = pageChanges;
 	metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
+	return metaData;
 }
 
 function topN(n, obj) {
@@ -211,6 +207,79 @@ function topN(n, obj) {
 	return topN;
 }
 
-function getTimelineData(filename) {
+function getTimelineData(data) {
+	var newData = [];
+	for(var obj of data) {
+		if(obj['type'] === 'gaze' || obj['type'] === 'pageView') {
+			newData.push(splitPageViewOrGaze('start', obj));
+			newData.push(splitPageViewOrGaze('end', obj));
+		} else {
+			newData.push(obj);
+		}
+	}
+	sortByTimestamp(newData);
+	return makeReadableTimeline(newData);
+}
 
+// part should be 'start' or 'end'
+function splitPageViewOrGaze(part, obj) {
+	var newObj = {};
+	if(part == 'start') {
+		newObj['type'] = obj['type'] + 'Start';
+		newObj['timestamp'] = obj['timestamp'];
+	} else if(part == 'end') {
+		newObj['type'] = obj['type'] + 'End';
+		newObj['timestamp'] = obj['timestampEnd'];
+		newObj['duration'] = obj['duration'];
+	}
+	newObj['target'] = obj['target'];
+	newObj['domain'] = obj['domain'];
+	newObj['pageTitle'] = obj['pageTitle'];
+	return newObj;
+}
+
+function makeReadableTimeline(data) {
+	var timeline = [];
+	for(var obj of data) {
+		var str = epochToTime(obj['timestamp']) + ': ';
+		switch(obj['type']) {
+			case 'gazeStart':
+				str += 'User started looking at "' + obj['target'];
+				str += '", on "' + obj['pageTitle'] + '"';
+				break;
+			case 'gazeEnd':
+				str += 'User stopped looking at "' + obj['target'];
+				str += '" after ' + obj['duration'];
+				str += ', on "' + obj['pageTitle'] + '"';
+				break;
+			case 'pageViewStart':
+				str += 'User started looking at "' + obj['domain'] + '"';
+				break;
+			case 'pageViewEnd':
+				str += 'User stopped looking at "' + obj['domain'] + '"';
+				str += ' after ' + obj['duration'];
+				break;
+			case 'Page Change': // Change this after playing with old dataset
+			case 'pageChange':
+				str += 'User changed pages from "' + obj['oldTitle'];
+				str += '" to "' + obj['newTitle'] + '"';
+				break;
+			case 'setting':
+				str += 'setting, not implemented'
+				break;
+			case 'comment':
+				str += 'User stated: "' + obj['message'] + '"';
+				break;
+			default:
+				continue;
+				break;
+		}
+		timeline.push(str);
+	}
+	return timeline;
+}
+
+// From https://stackoverflow.com/questions/6312993/javascript-seconds-to-time-string-with-format-hhmmss
+function epochToTime(epoch) {
+	return new Date(epoch).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
 }
