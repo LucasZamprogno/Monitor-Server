@@ -235,7 +235,9 @@ function topN(n, obj) {
 				index = j;
 			}
 		}
-		topN.push(best);
+		if(best !== '') {
+			topN.push(best);
+		}
 		domains.splice(index, 1);
 	};
 	return topN;
