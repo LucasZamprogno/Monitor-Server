@@ -103,10 +103,10 @@ function analyzeFile(filename) {
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(data);
 	analysisData[filename]['timeline'] = getTimelineData(data);
-	console.log(analysisData[filename]['metadata']);
 	for(var line of analysisData[filename]['timeline']) {
 		console.log(line);
 	}
+	console.log(analysisData[filename]['metadata']);
 	// TODO save to global
 }
 
@@ -206,19 +206,19 @@ function getMetaData(arr) {
 	for(var type in codeTimes) {
 		totalCodeGazeTime += codeTimes[type];
 	}
-	metaData['totalTime'] = totalTime;
-	metaData['trackedTime'] = trackedTime;
-	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime/totalGazeTime)/10);
-	metaData['untrackedTime'] = untrackedTime;
-	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime/totalGazeTime)/10);
+	metaData['totalTime'] = msToTime(totalTime);
+	metaData['trackedTime'] = msToTime(trackedTime);
+	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime / totalGazeTime) / 10);
+	metaData['untrackedTime'] = msToTime(untrackedTime);
+	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime / totalGazeTime) / 10);
 	if(trackedTime > 0) {
 		for(var domain in domainTimes) {
-			metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain]/trackedTime)/10);
+			metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain] / trackedTime) / 10);
 		}
 	}
 	if(totalCodeGazeTime > 0){
 		for(var type in codeTimes) {
-			metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type]/totalCodeGazeTime)/10);
+			metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type] / totalCodeGazeTime) / 10);
 		}
 	}
 	metaData['pageChanges'] = pageChanges;
@@ -226,6 +226,20 @@ function getMetaData(arr) {
 		metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
 	}
 	return metaData;
+}
+
+// From https://coderwall.com/p/wkdefg/converting-milliseconds-to-hh-mm-ss-mmm
+function msToTime(duration) {
+    var milliseconds = parseInt((duration % 1000) / 100)
+        , seconds = parseInt((duration / 1000) % 60)
+        , minutes = parseInt((duration / (1000 * 60)) % 60)
+        , hours = parseInt((duration / (1000 * 60 * 60)) % 24);
+
+    hours = (hours < 10) ? "0" + hours : hours;
+    minutes = (minutes < 10) ? "0" + minutes : minutes;
+    seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+    return hours + ":" + minutes + ":" + seconds + "." + milliseconds;
 }
 
 // Gets up to the top N untracked domains ordered by time spent 
