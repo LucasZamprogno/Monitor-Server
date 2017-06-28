@@ -2,11 +2,11 @@ var fs = require('fs');
 const PATH_IN = './Data';
 const PATH_OUT = './Analysis'
 var config = {
-	'ignore': 10,
-	'short': 300, // Right now this isn't used
-	'long': 1000, // Right now this isn't used
+	'ignore': 15, // Remove all gazes less than this (ms) completely
+	'merge': 50, // If two gazes on the same thing are less than this (ms) apart, merge them
+	'gaze': 200, // What counts as a reportable gaze
 	'code': 500, // Right now this isn't used
-	'domains': 3
+	'domains': 3 // How many top domains to report
 };
 var args = process.argv.slice(2); // Cut out node and analyze filepath arguments
 var analysisData = {};
@@ -93,16 +93,17 @@ function updateConfig() {
 
 // Load source data, get general information, process data, build timeline
 function analyzeFile(filename) {
-	var rawData = pullData(filename);
-	if(!rawData) {
+	var data = pullData(filename);
+	if(!data) {
 		return;
 	}
-	sortByTimestamp(rawData);
+	sortByTimestamp(data);
+	mergeEvents(data);
+	data = data.filter(removeSmallGazes);
 	analysisData[filename] = {};
-	analysisData[filename]['metadata'] = getMetaData(rawData);
+	analysisData[filename]['metadata'] = getMetaData(data);
+	analysisData[filename]['timeline'] = getTimelineData(data);
 	console.log(analysisData[filename]['metadata']);
-	// TODO compress gaze events, code viewing
-	analysisData[filename]['timeline'] = getTimelineData(rawData);
 	for(var line of analysisData[filename]['timeline']) {
 		console.log(line);
 	}
@@ -124,7 +125,7 @@ function pullData(file) {
 	for(var line of objs) {
 		data.push(JSON.parse(line));
 	}
-	return data.filter(removeSmallGazes);
+	return data;
 }
 
 function removeSmallGazes(obj) {
@@ -248,6 +249,46 @@ function topN(n, obj) {
 		domains.splice(index, 1);
 	};
 	return topN;
+}
+
+// If two neighbouring gazes are the same thing and close in time, merge them
+function mergeEvents(data) {
+	var i = 0, j = 1;
+	while(j < data.length) {
+		// Seek to nearest gaze/pageView for i
+		while(i < data.length - 2 && !data[i].hasOwnProperty('timestampEnd')) {
+			i++;
+		}
+		// Seek to next nearest gaze/pageView for j
+		j = i + 1;
+		while(j < data.length - 1 && !data[j].hasOwnProperty('timestampEnd')) {
+			j++;
+		}
+		// Now i and j are both on gaze or pageView entries
+		if(shouldBeSameGaze(data[i], data[j])) {
+			data[i]['timestampEnd'] = data[j]['timestampEnd'];
+			data[i]['duration'] = data[i]['timestampEnd'] - data[i]['timestamp'];
+			data.splice(j, 1);
+		} else {
+			i = j++; // Move i to j, put j past i
+		}
+	}
+}
+
+function shouldBeSameGaze(obj1, obj2) {
+	// If the gazes are too far apart in time
+	if(Math.abs(obj1['timestampEnd'] - obj2['timestamp']) > config['merge']) {
+		return false;
+	}
+	for(var key in obj1) {
+		if(key === 'duration' || key === 'timestamp' || key === 'timestampEnd') {
+			continue;
+		}
+		if(obj1[key] !== obj2[key]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 // Preprocess data, then get a readable format
