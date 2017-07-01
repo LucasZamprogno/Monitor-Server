@@ -5,7 +5,8 @@ var config = {
 	'ignore': 15, // Remove all gazes less than this (ms) completely
 	'merge': 50, // If two gazes on the same thing are less than this (ms) apart, merge them
 	'gaze': 200, // What counts as a reportable gaze
-	'code': 500, // Right now this isn't used
+	'code': 100, // Right now this isn't used
+	'lines': 4,
 	'domains': 3 // How many top domains to report
 };
 var args = process.argv.slice(2); // Cut out node and analyze filepath arguments
@@ -98,6 +99,7 @@ function analyzeFile(filename) {
 		return;
 	}
 	sortByTimestamp(data);
+	mergeCodeBlocks(data);
 	mergeEvents(data);
 	data = data.filter(removeSmallGazes);
 	analysisData[filename] = {};
@@ -323,17 +325,18 @@ function getTimelineData(data) {
 // part should be 'start' or 'end', splits single gazes into start and end points
 function splitPageViewOrGaze(part, obj) {
 	var newObj = {};
-	if(part == 'start') {
+	for(var key in obj) {
+		if(key === 'timestampEnd') {
+			continue;
+		}
+		newObj[key] = obj[key];
+	}
+	if(part === 'start') {
 		newObj['type'] = obj['type'] + 'Start';
-		newObj['timestamp'] = obj['timestamp'];
-	} else if(part == 'end') {
+	} else if(part === 'end') {
 		newObj['type'] = obj['type'] + 'End';
 		newObj['timestamp'] = obj['timestampEnd'];
-		newObj['duration'] = obj['duration'];
 	}
-	newObj['target'] = obj['target'];
-	newObj['domain'] = obj['domain'];
-	newObj['pageTitle'] = obj['pageTitle'];
 	return newObj;
 }
 
@@ -344,12 +347,36 @@ function makeReadableTimeline(data) {
 		var str = epochToTime(obj['timestamp']) + ': ';
 		switch(obj['type']) {
 			case 'gazeStart':
-				str += 'User started looking at "' + obj['target'];
-				str += '", on "' + obj['pageTitle'] + '"';
+				if(obj['target'] === 'Code') {
+					str += 'User started looking at ';
+					if(obj['change'] === 'deletion') {
+						str +='a ';
+					} else {
+						str += 'an ';
+					}
+					str += obj['change'] + ' block, from lines ';
+					str += obj['linesStart'] + ' to ' + obj['linesEnd'];
+					str += ', on "' + obj['pageTitle'] + '"';
+				} else {
+					str += 'User started looking at "' + obj['target'];
+					str += '", on "' + obj['pageTitle'] + '"';
+				}
 				break;
 			case 'gazeEnd':
-				str += 'User stopped looking at "' + obj['target'];
-				str += '", on "' + obj['pageTitle'] + '"';
+				if(obj['target'] === 'Code') {
+					str += 'User stopped looking at ';
+					if(obj['change'] === 'deletion') {
+						str +='a ';
+					} else {
+						str += 'an ';
+					}
+					str += obj['change'] + ' block, from lines ';
+					str += obj['linesStart'] + ' to ' + obj['linesEnd'];
+					str += ', on "' + obj['pageTitle'] + '"';
+				} else {
+					str += 'User stopped looking at "' + obj['target'];
+					str += '", on "' + obj['pageTitle'] + '"';
+				}
 				str += ' after ' + Math.round(obj['duration'] / 10) / 100 + ' seconds';
 				break;
 			case 'pageViewStart':
@@ -383,4 +410,86 @@ function makeReadableTimeline(data) {
 // Epoch time to HH:MM:SS format
 function epochToTime(epoch) {
 	return new Date(epoch).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
+}
+
+// CODE MERGING BELOW
+// TODO detect small blocks via unchanged/change alternation
+// CAN cause overlap in time
+function mergeCodeBlocks(data) {
+	var i = 0;
+	while(i < data.length) {
+		if(data[i]['target'] === 'Code') {
+			var codeBlock = {
+				'type': 'gaze',
+				'target': 'Code',
+				'change': data[i]['change'],
+				'duration': data[i]['duration'],
+				'timestamp': data[i]['timestamp'],
+				'timestampEnd': data[i]['timestampEnd'],
+				'pageTitle': data[i]['pageTitle'],
+				'pageHref': data[i]['pageHref']
+				// TODO add domain
+			};
+			if(data[i]['change'] === 'addition') {
+				codeBlock['linesStart'] = data[i]['newLineNum'];
+				codeBlock['linesEnd'] = data[i]['newLineNum'];
+			} else { // Unchanged using old by arbitrary choice, just be consistent
+				codeBlock['linesStart'] = data[i]['oldLineNum'];
+				codeBlock['linesEnd'] = data[i]['oldLineNum'];
+			}
+			var j = i + 1;
+			while(j < data.length && data[j]['timestamp'] - codeBlock['timestampEnd'] < config['code']) {
+				if(shouldAddToBlock(codeBlock, data[j])) {
+					updateBlock(codeBlock, data[j]);
+					data.splice(j, 1);
+				} else {
+					j++;
+				}
+			}
+			data[i] = codeBlock;
+		}
+		i++;
+	}
+}
+
+function shouldAddToBlock(block, obj) {
+	if(block['type'] !== obj['type']) {
+		return false;
+	}
+	if(block['change'] === 'addition') {
+		if(block['linesStart'] - obj['newLineNum'] > config['lines']) {
+			return false;
+		}
+		if(obj['newLineNum'] - block['linesEnd'] > config['lines']) {
+			return false;
+		}
+	} else {
+		if(block['linesStart'] - obj['oldLineNum'] > config['lines']) {
+			return false;
+		}
+		if(obj['oldLineNum'] - block['linesEnd'] > config['lines']) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function updateBlock(block, obj) {
+	block['timestampEnd'] = obj['timestamp'];
+	block['duration'] += obj['duration'];
+	if(block['change'] === 'addition') {
+		if(block['linesStart'] > obj['newLineNum']) {
+			block['linesStart'] = obj['newLineNum'];
+		}
+		if(block['linesEnd'] < obj['newLineNum']) {
+			block['linesEnd'] = obj['newLineNum'];
+		}
+	} else {
+		if(block['linesStart'] > obj['oldLineNum']) {
+			block['linesStart'] = obj['oldLineNum'];
+		}
+		if(block['linesEnd'] < obj['oldLineNum']) {
+			block['linesEnd'] = obj['oldLineNum'];
+		}
+	}
 }
