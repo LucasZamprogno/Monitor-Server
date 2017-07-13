@@ -347,7 +347,6 @@ function makeReadableTimeline(data) {
 		var str = epochToTime(obj['timestamp']) + ': ';
 		switch(obj['type']) {
 			case 'gazeStart':
-				continue;
 				if(obj['target'] === 'code') {
 					str += 'User started looking at ';
 					if(obj['change'] === 'deletion') {
@@ -393,13 +392,16 @@ function makeReadableTimeline(data) {
 				str += '" to "' + obj['newTitle'] + '"';
 				break;
 			case 'setting':
-				str += 'setting, not implemented'
+				str += 'Setting change: ' + obj['detail'];
 				break;
 			case 'comment':
 				str += 'User stated: "' + obj['message'] + '"';
 				break;
+			case 'gazeLoss':
+				str += 'Gaze lost';
+				break;
 			default:
-				continue;
+				str += obj['type'] + ' event at ' + obj['target'] + ' on ' + obj['domain'];
 				break;
 		}
 		timeline.push(str);
