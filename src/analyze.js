@@ -2,8 +2,8 @@ var fs = require('fs');
 const PATH_IN = './Data';
 const PATH_OUT = './Analysis'
 var config = {
-	'ignore': 15, // Remove all gazes less than this (ms) completely
-	'merge': 50, // If two gazes on the same thing are less than this (ms) apart, merge them
+	'ignore': 50, // Remove all gazes less than this (ms) completely
+	'merge': 200, // If two gazes on the same thing are less than this (ms) apart, merge them
 	'gaze': 200, // What counts as a reportable gaze
 	'code': 100, // Right now this isn't used
 	'lines': 4,
@@ -108,7 +108,7 @@ function analyzeFile(filename) {
 	for(var line of analysisData[filename]['timeline']) {
 		console.log(line);
 	}
-	console.log(analysisData[filename]['metadata']);
+	//console.log(analysisData[filename]['metadata']);
 	// TODO save to global
 }
 
@@ -169,7 +169,7 @@ function getMetaData(arr) {
 			case 'gaze':
 				var duration = obj['duration'];
 				trackedTime += duration;
-				if(obj['target'] === 'Code') {// Change to 'code'
+				if(obj['target'] === 'code') {
 					codeTimes[obj['change']] += duration
 				}
 				// TODO change this once working with a dataset with domain on all items
@@ -347,7 +347,7 @@ function makeReadableTimeline(data) {
 		var str = epochToTime(obj['timestamp']) + ': ';
 		switch(obj['type']) {
 			case 'gazeStart':
-				if(obj['target'] === 'Code') {
+				if(obj['target'] === 'code') {
 					str += 'User started looking at ';
 					if(obj['change'] === 'deletion') {
 						str +='a ';
@@ -363,7 +363,7 @@ function makeReadableTimeline(data) {
 				}
 				break;
 			case 'gazeEnd':
-				if(obj['target'] === 'Code') {
+				if(obj['target'] === 'code') {
 					str += 'User stopped looking at ';
 					if(obj['change'] === 'deletion') {
 						str +='a ';
@@ -418,10 +418,10 @@ function epochToTime(epoch) {
 function mergeCodeBlocks(data) {
 	var i = 0;
 	while(i < data.length) {
-		if(data[i]['target'] === 'Code') {
+		if(data[i]['target'] === 'code') {
 			var codeBlock = {
 				'type': 'gaze',
-				'target': 'Code',
+				'target': 'code',
 				'change': data[i]['change'],
 				'duration': data[i]['duration'],
 				'timestamp': data[i]['timestamp'],
@@ -453,7 +453,10 @@ function mergeCodeBlocks(data) {
 }
 
 function shouldAddToBlock(block, obj) {
-	if(block['type'] !== obj['type']) {
+	if(obj['target'] !== 'code') {
+		return false;
+	}
+	if(block['change'] !== obj['change']) {
 		return false;
 	}
 	if(block['change'] === 'addition') {
@@ -475,7 +478,7 @@ function shouldAddToBlock(block, obj) {
 }
 
 function updateBlock(block, obj) {
-	block['timestampEnd'] = obj['timestamp'];
+	block['timestampEnd'] = obj['timestampEnd'];
 	block['duration'] += obj['duration'];
 	if(block['change'] === 'addition') {
 		if(block['linesStart'] > obj['newLineNum']) {
