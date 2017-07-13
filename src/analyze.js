@@ -414,10 +414,11 @@ function epochToTime(epoch) {
 
 // CODE MERGING BELOW
 // TODO detect small blocks via unchanged/change alternation
-// CAN cause overlap in time
 function mergeCodeBlocks(data) {
 	var i = 0;
 	while(i < data.length) {
+		var j = i + 1;
+		var nextStart = j;
 		if(data[i]['target'] === 'code') {
 			var codeBlock = {
 				'type': 'gaze',
@@ -437,19 +438,30 @@ function mergeCodeBlocks(data) {
 				codeBlock['linesStart'] = data[i]['oldLineNum'];
 				codeBlock['linesEnd'] = data[i]['oldLineNum'];
 			}
-			var j = i + 1;
 			while(j < data.length && data[j]['timestamp'] - codeBlock['timestampEnd'] < config['code']) {
 				if(shouldAddToBlock(codeBlock, data[j])) {
 					updateBlock(codeBlock, data[j]);
 					data.splice(j, 1);
+					nextStart = j; // We have a gaze up to here, definitely start after
 				} else {
 					j++;
+					// Don't update nextStart here, we could be going over useful data for the next gaze
 				}
 			}
 			data[i] = codeBlock;
 		}
-		i++;
+		cutCodeNoise(data, i + 1, nextStart);
+		i = nextStart;
 	}
+}
+
+// Cut out all individual code gazes between start and end
+function cutCodeNoise(data, start, end) {
+	for (var i = start; i < end; i++) {
+		if(data[i]['type'] === 'gaze' && data[i]['target'] === 'code' && !data[i].hasOwnProperty('linesEnd')) {
+			data.splice(i, 1);
+		}
+	};
 }
 
 function shouldAddToBlock(block, obj) {
