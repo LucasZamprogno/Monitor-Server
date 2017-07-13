@@ -347,6 +347,7 @@ function makeReadableTimeline(data) {
 		var str = epochToTime(obj['timestamp']) + ': ';
 		switch(obj['type']) {
 			case 'gazeStart':
+				continue;
 				if(obj['target'] === 'code') {
 					str += 'User started looking at ';
 					if(obj['change'] === 'deletion') {
@@ -450,18 +451,23 @@ function mergeCodeBlocks(data) {
 			}
 			data[i] = codeBlock;
 		}
-		cutCodeNoise(data, i + 1, nextStart);
+		// Trim out all single gaze points from before the code block gaze ends
+		var s = i + 1;
+		while(s < nextStart) {
+			if(data[s]['type'] === 'gaze' && data[s]['target'] === 'code' && !data[s].hasOwnProperty('linesEnd')) {
+				nextStart--;
+				data.splice(s, 1);
+			} else {
+				s++;
+			}
+		}
 		i = nextStart;
 	}
 }
 
 // Cut out all individual code gazes between start and end
 function cutCodeNoise(data, start, end) {
-	for (var i = start; i < end; i++) {
-		if(data[i]['type'] === 'gaze' && data[i]['target'] === 'code' && !data[i].hasOwnProperty('linesEnd')) {
-			data.splice(i, 1);
-		}
-	};
+	
 }
 
 function shouldAddToBlock(block, obj) {
