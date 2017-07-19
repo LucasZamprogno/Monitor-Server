@@ -2,10 +2,9 @@ var fs = require('fs');
 const PATH_IN = './Data';
 const PATH_OUT = './Analysis'
 var config = {
-	'ignore': 50, // Remove all gazes less than this (ms) completely
-	'merge': 200, // If two gazes on the same thing are less than this (ms) apart, merge them
-	'gaze': 200, // What counts as a reportable gaze
-	'code': 100, // Right now this isn't used
+	'ignore': 100, // Remove all gazes less than this (ms) completely
+	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
+	'gaze': 200, // What counts as a reportable gaze, don't think this is used (ignore does similar)
 	'lines': 4,
 	'domains': 3 // How many top domains to report
 };
@@ -47,6 +46,8 @@ if(args.length === 0) {
 		}		
 	}
 }
+
+writeAllAnalysis();
 
 // Ensure format matches 'npm run analyze [filename] [param1=value param2=value ...]'
 function validateArgs() {
@@ -105,11 +106,16 @@ function analyzeFile(filename) {
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(data);
 	analysisData[filename]['timeline'] = getTimelineData(data);
-	for(var line of analysisData[filename]['timeline']) {
-		console.log(line);
+}
+
+function writeAllAnalysis() {
+	if(!fs.existsSync(PATH_OUT)) {
+		fs.mkdirSync(PATH_OUT);
 	}
-	//console.log(analysisData[filename]['metadata']);
-	// TODO save to global
+	for(var id in analysisData) {
+		var filepath = PATH_OUT + '/' + id; // id will end in .txt
+		fs.writeFileSync(filepath, JSON.stringify(analysisData[id]));
+	}
 }
 
 // Load data from file, remove all gazes/pageViews with duration less than config ignore value 
