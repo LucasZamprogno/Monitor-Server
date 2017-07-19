@@ -356,10 +356,10 @@ function makeReadableTimeline(data) {
 					}
 					str += obj['change'] + ' block, from lines ';
 					str += obj['linesStart'] + ' to ' + obj['linesEnd'];
-					str += ', on "' + obj['pageTitle'] + '"';
+					str += ', on "' + obj['pageType'] + '"';
 				} else {
 					str += 'User started looking at "' + obj['target'];
-					str += '", on "' + obj['pageTitle'] + '"';
+					str += '", on "' + obj['pageType'] + '"';
 				}
 				break;
 			case 'gazeEnd':
@@ -372,10 +372,10 @@ function makeReadableTimeline(data) {
 					}
 					str += obj['change'] + ' block, from lines ';
 					str += obj['linesStart'] + ' to ' + obj['linesEnd'];
-					str += ', on "' + obj['pageTitle'] + '"';
+					str += ', on "' + obj['pageType'] + '"';
 				} else {
 					str += 'User stopped looking at "' + obj['target'];
-					str += '", on "' + obj['pageTitle'] + '"';
+					str += '", on "' + obj['pageType'] + '"';
 				}
 				str += ' after ' + Math.round(obj['duration'] / 10) / 100 + ' seconds';
 				break;
@@ -430,7 +430,7 @@ function mergeCodeBlocks(data) {
 				'duration': data[i]['duration'],
 				'timestamp': data[i]['timestamp'],
 				'timestampEnd': data[i]['timestampEnd'],
-				'pageTitle': data[i]['pageTitle'],
+				'pageType': data[i]['pageType'],
 				'pageHref': data[i]['pageHref']
 				// TODO add domain
 			};

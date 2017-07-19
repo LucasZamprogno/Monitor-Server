@@ -19,11 +19,11 @@ function receiveData(req, res, next) {
 	// Check for page focus change
 	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== sessions[id]['lastHref']) {
 		if(sessions[id]['lastHref'] !== null) {
-			var out = pageChangeObject(sessions[id]['lastTitle'], req.body['pageTitle'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']);
+			var out = pageChangeObject(sessions[id]['lastType'], req.body['pageType'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']);
 			save(id, out);
 		}
 		sessions[id]['lastHref'] = req.body['pageHref'];
-		sessions[id]['lastTitle'] = req.body['pageTitle'];
+		sessions[id]['lastType'] = req.body['pageType'];
 	}
 	save(id, req.body);
 	res.send(200);
@@ -44,7 +44,7 @@ function pageChangeObject(oldTitle, newTitle, oldHref, newHref, timestamp) {
 function newSessionObject(id) {
 	return {
 		'lastHref': null,
-		'lastTitle': null,
+		'lastType': null,
 		'outputStream': setupOutput(id)
 	};
 }
