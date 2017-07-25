@@ -4,6 +4,7 @@ const PATH_OUT = './Analysis'
 var config = {
 	'ignore': 100, // Remove all gazes less than this (ms) completely
 	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
+	'code': 150, // Merging code lines
 	'gaze': 200, // What counts as a reportable gaze, don't think this is used (ignore does similar)
 	'lines': 4,
 	'domains': 3 // How many top domains to report
@@ -106,6 +107,7 @@ function analyzeFile(filename) {
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(data);
 	analysisData[filename]['timeline'] = getTimelineData(data);
+	analysisData[filename]['raw'] = data;
 }
 
 function writeAllAnalysis() {
@@ -421,7 +423,6 @@ function epochToTime(epoch) {
 	return new Date(epoch).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
 }
 
-// CODE MERGING BELOW
 // TODO detect small blocks via unchanged/change alternation
 function mergeCodeBlocks(data) {
 	var i = 0;
@@ -432,12 +433,15 @@ function mergeCodeBlocks(data) {
 			var codeBlock = {
 				'type': 'gaze',
 				'target': 'code',
+				'file': data[i]['file'],
 				'change': data[i]['change'],
 				'duration': data[i]['duration'],
 				'timestamp': data[i]['timestamp'],
 				'timestampEnd': data[i]['timestampEnd'],
+				'domain': data[i]['domain'],
 				'pageType': data[i]['pageType'],
-				'pageHref': data[i]['pageHref']
+				'pageHref': data[i]['pageHref'],
+				'lines': []
 				// TODO add domain
 			};
 			if(data[i]['change'] === 'addition') {
@@ -471,11 +475,6 @@ function mergeCodeBlocks(data) {
 		}
 		i = nextStart;
 	}
-}
-
-// Cut out all individual code gazes between start and end
-function cutCodeNoise(data, start, end) {
-	
 }
 
 function shouldAddToBlock(block, obj) {
@@ -520,5 +519,17 @@ function updateBlock(block, obj) {
 		if(block['linesEnd'] < obj['oldLineNum']) {
 			block['linesEnd'] = obj['oldLineNum'];
 		}
+	}
+	block['lines'].push(lineDetails(obj));
+}
+
+function lineDetails(obj) {
+	return {
+		'oldLineNum': obj['oldLineNum'],
+		'newLineNum': obj['newLineNum'],
+		'length': obj['length'],
+		'indentType': obj['indentType'],
+		'indentValue': obj['indentValue'],
+		'codeText': obj['codeText'],
 	}
 }
