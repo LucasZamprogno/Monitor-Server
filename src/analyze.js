@@ -524,12 +524,15 @@ function updateBlock(block, obj) {
 }
 
 function lineDetails(obj) {
-	return {
+	var newObj = {
 		'oldLineNum': obj['oldLineNum'],
 		'newLineNum': obj['newLineNum'],
 		'length': obj['length'],
 		'indentType': obj['indentType'],
-		'indentValue': obj['indentValue'],
-		'codeText': obj['codeText'],
+		'indentValue': obj['indentValue']
 	}
+	if(obj['codeText']) {
+		newObj['codeText'] = obj['codeText'];
+	}
+	return newObj;
 }

@@ -16,29 +16,9 @@ function receiveData(req, res, next) {
 	if(!sessions[id]) {
 		sessions[id] = newSessionObject(id);
 	}
-	// Check for page focus change
-	if(req.body.hasOwnProperty('pageHref') && req.body['pageHref'] !== sessions[id]['lastHref']) {
-		if(sessions[id]['lastHref'] !== null) {
-			var out = pageChangeObject(sessions[id]['lastType'], req.body['pageType'], sessions[id]['lastHref'], req.body['pageHref'], req.body['timestamp']);
-			save(id, out);
-		}
-		sessions[id]['lastHref'] = req.body['pageHref'];
-		sessions[id]['lastType'] = req.body['pageType'];
-	}
 	save(id, req.body);
 	res.send(200);
 	next();
-}
-
-function pageChangeObject(oldTitle, newTitle, oldHref, newHref, timestamp) {
-	return {
-		'type': 'pageChange',
-		'oldTitle': oldTitle,
-		'newTitle': newTitle,
-		'oldHref': oldHref,
-		'newHref': newHref,
-		'timestamp': timestamp
-	};
 }
 
 function newSessionObject(id) {
