@@ -7,7 +7,7 @@ var config = {
 	'code': 150, // Merging code lines
 	'gaze': 200, // What counts as a reportable gaze, don't think this is used (ignore does similar)
 	'lines': 4,
-	'domains': 3 // How many top domains to report
+	'domains': 5 // How many top domains to report
 };
 var args = process.argv.slice(2); // Cut out node and analyze filepath arguments
 var analysisData = {};
@@ -100,14 +100,14 @@ function analyzeFile(filename) {
 	if(!data) {
 		return;
 	}
+	analysisData[filename] = {};
+	analysisData[filename]['metadata'] = getMetaData(data);
 	sortByTimestamp(data);
 	mergeCodeBlocks(data);
 	mergeEvents(data);
 	data = data.filter(removeSmallGazes);
-	analysisData[filename] = {};
-	analysisData[filename]['metadata'] = getMetaData(data);
 	analysisData[filename]['timeline'] = getTimelineData(data);
-	analysisData[filename]['raw'] = data;
+	//analysisData[filename]['raw'] = data;
 }
 
 function writeAllAnalysis() {
@@ -157,58 +157,34 @@ function getMetaData(arr) {
 	var totalGazeTime = 0;
 	var totalCodeGazeTime = 0;
 	var untrackedTime = 0;
-	var untrackedDomainTimes = {};
-	var untrackedDomains = [];
+	var allDomainTimes = {};
 	var pageChanges = 0;
-	var fileTimes = {}; // Add this when reporting filenames
-	var codeTimes = {
-		'addition': 0,
-		'deletion': 0,
-		'unchanged': 0
-	};
-	var domainTimes = {
-		'github': 0,
-		'bitbucket': 0,
-		'stackoverflow': 0,
-		'google': 0
-	};
+	var fileTimes = {};
+	var codeTimes = {};
 	for(var obj of arr) {
 		switch(obj['type']) {
 			case 'gaze':
 				var duration = obj['duration'];
 				trackedTime += duration;
+				if(obj.hasOwnProperty('file')) {
+					addTo(fileTimes, obj['file'], duration);
+				}
 				if(obj['target'] === 'code') {
-					codeTimes[obj['change']] += duration
+					addTo(codeTimes, obj['change'], duration);
 				}
-				// TODO change this once working with a dataset with domain on all items
-				var href = obj['pageHref'];
-				if(href.includes('github')) {
-					domainTimes['github'] += duration;
-				} else if(href.includes('bitbucket')) {
-					domainTimes['bitbucket'] += duration;
-				} else if(href.includes('stackoverflow')) {
-					domainTimes['stackoverflow'] += duration;
-				} else if(href.includes('google')) {
-					domainTimes['google'] += duration;
-				}
+				addTo(allDomainTimes, obj['domain'], duration);
 				break;
 			case 'pageView':
 				var duration = obj['duration']
 				untrackedTime += duration;
 				var domain = obj['domain'];
-				if(untrackedDomainTimes.hasOwnProperty(domain)) {
-					untrackedDomainTimes[domain] += duration;
-				} else {
-					untrackedDomainTimes[domain] = duration;
-				}
+				addTo(allDomainTimes, domain, duration);
 				break;
-			case 'Page Change': // Change this after playing with old dataset
 			case 'pageChange':
 				pageChanges++;
 				break;
-			case 'setting':
-				break;
-			case 'comment':
+			default:
+				continue;
 				break;
 		}
 	}
@@ -221,21 +197,32 @@ function getMetaData(arr) {
 	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime / totalGazeTime) / 10);
 	metaData['untrackedTime'] = msToTime(untrackedTime);
 	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime / totalGazeTime) / 10);
-	if(trackedTime > 0) {
-		for(var domain in domainTimes) {
-			metaData[domain + 'Percent'] = (Math.round(1000 * domainTimes[domain] / trackedTime) / 10);
-		}
-	}
 	if(totalCodeGazeTime > 0){
 		for(var type in codeTimes) {
 			metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type] / totalCodeGazeTime) / 10);
 		}
 	}
+	if(JSON.stringify(fileTimes) !== '{}'){
+		for(var file in fileTimes) {
+			fileTimes[file] = msToTime(fileTimes[file]);
+		}
+	}
+	metaData['fileTimes'] = fileTimes;
 	metaData['pageChanges'] = pageChanges;
-	if(untrackedTime > 0) {
-		metaData['topUntrackedDomains'] = topN(config['domains'], untrackedDomainTimes);
+	metaData['domainTimes'] = topN(config['domains'], allDomainTimes);
+	for(var domain in metaData['domainTimes']) {
+		metaData['domainTimes'][domain] = msToTime(metaData['domainTimes'][domain]);
 	}
 	return metaData;
+}
+
+// If object has property, add val. If not create and set to val
+function addTo(object, property, val) {
+	if(object.hasOwnProperty(property)) {
+		object[property] += val;
+	} else {
+		object[property] = val;
+	}
 }
 
 // From https://coderwall.com/p/wkdefg/converting-milliseconds-to-hh-mm-ss-mmm
@@ -254,7 +241,7 @@ function msToTime(duration) {
 
 // Gets up to the top N untracked domains ordered by time spent 
 function topN(n, obj) {
-	var topN = [];
+	var topN = {};
 	var domains = Object.keys(obj);
 	for (var i = 0; i < n; i++) {
 		var largest = -1;
@@ -268,7 +255,7 @@ function topN(n, obj) {
 			}
 		}
 		if(best !== '') {
-			topN.push(best);
+			topN[best] = obj[best];
 		}
 		domains.splice(index, 1);
 	};
@@ -408,6 +395,8 @@ function makeReadableTimeline(data) {
 			case 'gazeLoss':
 				str += 'Gaze lost';
 				break;
+			case 'diffs':
+				continue;
 			default:
 				str += obj['type'] + ' event at ' + obj['target'] + ' on ' + obj['domain'];
 				break;
