@@ -102,6 +102,8 @@ function analyzeFile(filename) {
 	}
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(data);
+	setupDiffs(data);
+	addTimesToLines(data);
 	sortByTimestamp(data);
 	mergeCodeBlocks(data);
 	mergeEvents(data);
@@ -412,6 +414,10 @@ function epochToTime(epoch) {
 	return new Date(epoch).toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
 }
 
+/***********
+Code Merging
+***********/
+
 // TODO detect small blocks via unchanged/change alternation
 function mergeCodeBlocks(data) {
 	var i = 0;
@@ -524,4 +530,48 @@ function lineDetails(obj) {
 		newObj['codeText'] = obj['codeText'];
 	}
 	return newObj;
+}
+
+/************
+Diff analysis
+************/
+
+function diffID(obj) {
+	return obj['pageHref'] + obj['file'];
+}
+
+function setupDiffs(data) {
+	// I heard you like iteration
+	analysisData['diffs'] = {};
+	for(var obj of data) {
+		if(obj['type'] === 'diffs') {
+			for(var diff of obj['diffs']) {
+				for(var line of diff['allLineDetails']) {
+					line['viewDuration'] = 0;
+				}
+				analysisData['diffs'][diffID(diff)] = diff;
+			}
+		}
+	}
+}
+
+function isSameLine(line1, line2) {
+	return line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
+}
+
+function addTimesToLines(data) {
+	for(var obj of data) {
+		if(obj['type'] === 'gaze' && obj['target'] === 'code') {
+			var id = diffID(obj);
+			if(!analysisData['diffs'].hasOwnProperty(id)) {
+				console.log('Somehow no diff for this line');
+			} else {
+				for(var line of analysisData['diffs'][id]['allLineDetails']) {
+					if(isSameLine(obj, line)) {
+						line['viewDuration'] += obj['duration'];
+					}
+				}
+			}
+		}
+	}
 }
