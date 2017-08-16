@@ -102,8 +102,8 @@ function analyzeFile(filename) {
 	}
 	analysisData[filename] = {};
 	analysisData[filename]['metadata'] = getMetaData(data);
-	setupDiffs(data);
-	addTimesToLines(data);
+	setupDiffs(analysisData[filename], data);
+	addTimesToLines(analysisData[filename], data);
 	sortByTimestamp(data);
 	mergeCodeBlocks(data);
 	mergeEvents(data);
@@ -540,16 +540,16 @@ function diffID(obj) {
 	return obj['pageHref'] + obj['file'];
 }
 
-function setupDiffs(data) {
+function setupDiffs(analysis, data) {
 	// I heard you like iteration
-	analysisData['diffs'] = {};
+	analysis['diffs'] = {};
 	for(var obj of data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
 				for(var line of diff['allLineDetails']) {
 					line['viewDuration'] = 0;
 				}
-				analysisData['diffs'][diffID(diff)] = diff;
+				analysis['diffs'][diffID(diff)] = diff;
 			}
 		}
 	}
@@ -559,18 +559,15 @@ function isSameLine(line1, line2) {
 	return line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
 }
 
-function addTimesToLines(data) {
+function addTimesToLines(analysis, data) {
 	for(var obj of data) {
-		if(obj['type'] === 'gaze' && obj['target'] === 'code') {
+		if(obj.hasOwnProperty('index')) { // Anything from a diff has this
 			var id = diffID(obj);
-			if(!analysisData['diffs'].hasOwnProperty(id)) {
-				console.log('Somehow no diff for this line');
+			if(!analysis['diffs'].hasOwnProperty(id)) {
+				console.log('Following object could not be matched to any diff:');
+				console.log(obj);
 			} else {
-				for(var line of analysisData['diffs'][id]['allLineDetails']) {
-					if(isSameLine(obj, line)) {
-						line['viewDuration'] += obj['duration'];
-					}
-				}
+				analysis['diffs'][id]['allLineDetails'][obj['index']]['viewDuration'] += obj['duration'];
 			}
 		}
 	}
