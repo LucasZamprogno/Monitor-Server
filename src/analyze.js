@@ -171,7 +171,7 @@ function getMetaData(arr) {
 				if(obj.hasOwnProperty('file')) {
 					addTo(fileTimes, obj['file'], duration);
 				}
-				if(obj['target'] === 'code') {
+				if(obj['target'] === 'diffCode') {
 					addTo(codeTimes, obj['change'], duration);
 				}
 				addTo(allDomainTimes, obj['domain'], duration);
@@ -344,7 +344,7 @@ function makeReadableTimeline(data) {
 		var str = epochToTime(obj['timestamp']) + ': ';
 		switch(obj['type']) {
 			case 'gazeStart':
-				if(obj['target'] === 'code') {
+				if(obj['target'] === 'diffCode') {
 					str += 'User started looking at ';
 					if(obj['change'] === 'deletion') {
 						str +='a ';
@@ -360,7 +360,7 @@ function makeReadableTimeline(data) {
 				}
 				break;
 			case 'gazeEnd':
-				if(obj['target'] === 'code') {
+				if(obj['target'] === 'diffCode') {
 					str += 'User stopped looking at ';
 					if(obj['change'] === 'deletion') {
 						str +='a ';
@@ -424,10 +424,10 @@ function mergeCodeBlocks(data) {
 	while(i < data.length) {
 		var j = i + 1;
 		var nextStart = j;
-		if(data[i]['target'] === 'code') {
+		if(data[i]['target'] === 'diffCode') {
 			var codeBlock = {
 				'type': 'gaze',
-				'target': 'code',
+				'target': 'diffCode',
 				'file': data[i]['file'],
 				'change': data[i]['change'],
 				'duration': data[i]['duration'],
@@ -461,7 +461,7 @@ function mergeCodeBlocks(data) {
 		// Trim out all single gaze points from before the code block gaze ends
 		var s = i + 1;
 		while(s < nextStart) {
-			if(data[s]['type'] === 'gaze' && data[s]['target'] === 'code' && !data[s].hasOwnProperty('linesEnd')) {
+			if(data[s]['type'] === 'gaze' && data[s]['target'] === 'diffCode' && !data[s].hasOwnProperty('linesEnd')) {
 				nextStart--;
 				data.splice(s, 1);
 			} else {
@@ -473,7 +473,7 @@ function mergeCodeBlocks(data) {
 }
 
 function shouldAddToBlock(block, obj) {
-	if(obj['target'] !== 'code') {
+	if(obj['target'] !== 'diffCode') {
 		return false;
 	}
 	if(block['change'] !== obj['change']) {
@@ -559,7 +559,7 @@ function isSameLine(line1, line2) {
 	if(line1['target'] !== line2['target']) {
 		return false;
 	}
-	if(line1['target'] === 'code') {
+	if(line1['target'] === 'diffCode') {
 		return line1['change'] === line2['change'] && line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
 	} else if(line1['target'] === 'Inline diff comment') {
 		return line1['hashedContent'] === line2['hashedContent'];
