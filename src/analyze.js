@@ -537,7 +537,7 @@ Diff analysis
 ************/
 
 function diffID(obj) {
-	return obj['pageHref'] + obj['file'];
+	return obj['pageHref'] + '-' + obj['diffIndex'];
 }
 
 function setupDiffs(analysis, data) {
