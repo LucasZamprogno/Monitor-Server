@@ -556,7 +556,20 @@ function setupDiffs(analysis, data) {
 }
 
 function isSameLine(line1, line2) {
-	return line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
+	if(line1['target'] !== line2['target']) {
+		return false;
+	}
+	if(line1['target'] === 'code') {
+		return line1['change'] === line2['change'] && line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
+	} else if(line1['target'] === 'Inline diff comment') {
+		return line1['hashedContent'] === line2['hashedContent'];
+	} else if(line1['target'].includes('Expandable line')) {
+		return line1['oldStart'] === line2['oldStart'] && line1['oldEnd'] === line2['oldEnd'] && line1['newStart'] === line2['newStart'] && line1['newEnd'] === line2['newEnd'];
+	} else if(line1['target'] === 'File start marker') {
+		return true;
+	} else { // Just in case
+		return false;
+	}
 }
 
 function addTimesToLines(analysis, data) {
@@ -567,7 +580,12 @@ function addTimesToLines(analysis, data) {
 				console.log('Following object could not be matched to any diff:');
 				console.log(obj);
 			} else {
-				analysis['diffs'][id]['allLineDetails'][obj['index']]['viewDuration'] += obj['duration'];
+				for(var line of analysis['diffs'][id]['allLineDetails']) {
+					if(isSameLine(obj, line)) {
+						line['viewDuration'] += obj['duration'];
+						break;
+					}
+				}
 			}
 		}
 	}
