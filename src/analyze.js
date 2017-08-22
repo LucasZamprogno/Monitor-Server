@@ -104,6 +104,8 @@ function analyzeFile(filename) {
 	analysisData[filename]['metadata'] = getMetaData(data);
 	setupDiffs(analysisData[filename], data);
 	addTimesToLines(analysisData[filename], data);
+	expansionAnalysis(analysisData[filename]['diffs'], data);
+	diffGazeAnalysis(analysisData[filename]['diffs']);
 	sortByTimestamp(data);
 	mergeCodeBlocks(data);
 	mergeEvents(data);
@@ -548,7 +550,10 @@ function setupDiffs(analysis, data) {
 			for(var diff of obj['diffs']) {
 				expandDiffData(diff);
 				for(var line of diff['allLineDetails']) {
-					line['viewDuration'] = 0;
+					line['duration'] = 0;
+					if(line['target'] === 'Expandable line details') {
+						line['clicked'] = false;
+					}
 				}
 				analysis['diffs'][diffID(diff)] = diff;
 			}
@@ -563,6 +568,7 @@ function expandDiffData(diff) {
 	var additions = 0;
 	var deletions = 0;
 	var unchanged = 0;
+	var expandable = 0;
 	var additionLength = 0;
 	var deletionLength = 0;
 	var unchangedLength = 0;
@@ -595,6 +601,8 @@ function expandDiffData(diff) {
 						unchangedLength += row['length'];
 						break;
 				}
+			} else if (row['target'] === 'Expandable line details'){
+				expandable++;
 			} else {
 				continue;
 			}
@@ -621,6 +629,9 @@ function expandDiffData(diff) {
 	diff['unchangedPercentage'] = Math.round(100 * unchanged / totalCodeLines)/100;
 	diff['unchangedPercentageByLength'] = Math.round(100 * unchangedLength / totalLength)/100;
 	diff['unchangedLength'] = unchangedLength;
+	diff['expandableLines'] = expandable;
+	diff['linesExpanded'] = 0;
+	diff['innerExpansionsExpanded'] = 0;
 	diff['medianChangeIndex'] = median(changedRowIndexes);
 	diff['indentType'] = indentType;
 	diff['medianIndent'] = median(indentations);
@@ -630,18 +641,20 @@ function expandDiffData(diff) {
 	diff['medianLength'] = median(lengths);
 	diff['minLength'] = Math.min.apply(Math, lengths);
 	diff['maxLength'] = Math.max.apply(Math, lengths);
+	diff['gazeData'] = {};
 }
 
 function isSameLine(line1, line2) {
 	if(line1['target'] !== line2['target']) {
+		if(line1['target'].includes('Expandable line')) {
+			return line1['oldStart'] === line2['oldStart'] && line1['oldEnd'] === line2['oldEnd'] && line1['newStart'] === line2['newStart'] && line1['newEnd'] === line2['newEnd'];
+		}
 		return false;
 	}
 	if(line1['target'] === 'diffCode') {
 		return line1['change'] === line2['change'] && line1['oldLineNum'] === line2['oldLineNum'] && line1['newLineNum'] === line2['newLineNum'];
 	} else if(line1['target'] === 'Inline diff comment') {
 		return line1['hashedContent'] === line2['hashedContent'];
-	} else if(line1['target'].includes('Expandable line')) {
-		return line1['oldStart'] === line2['oldStart'] && line1['oldEnd'] === line2['oldEnd'] && line1['newStart'] === line2['newStart'] && line1['newEnd'] === line2['newEnd'];
 	} else if(line1['target'] === 'File start marker') {
 		return true;
 	} else { // Just in case
@@ -651,7 +664,7 @@ function isSameLine(line1, line2) {
 
 function addTimesToLines(analysis, data) {
 	for(var obj of data) {
-		if(obj.hasOwnProperty('index')) { // Anything from a diff has this
+		if(obj['type'] === 'gaze' && obj.hasOwnProperty('index')) { // Anything from a diff has this
 			var id = diffID(obj);
 			if(!analysis['diffs'].hasOwnProperty(id)) {
 				console.log('Following object could not be matched to any diff:');
@@ -659,12 +672,97 @@ function addTimesToLines(analysis, data) {
 			} else {
 				for(var line of analysis['diffs'][id]['allLineDetails']) {
 					if(isSameLine(obj, line)) {
-						line['viewDuration'] += obj['duration'];
+						line['duration'] += obj['duration'];
 						break;
 					}
 				}
 			}
 		}
+	}
+}
+
+function expansionAnalysis(diffs, data) {
+	for(var line of data) {
+		if(line['type'] === 'click' && line['target'] === 'Expandable line button') {
+			var id = diffID(line);
+			if(diffs.hasOwnProperty(id)) {
+				var found = false;
+				for(var innerLine of diffs[id]['allLineDetails']) {
+					if(isSameLine(innerLine, line)) {
+						found = true;
+						innerLine['clicked'] = true;
+					}
+				}
+				if(found) {
+					diffs[id]['linesExpanded']++;
+				} else {
+					diffs[id]['innerExpansionsExpanded']++;
+				}
+			} else { // Should never happen
+				console.log('Line with unfound diff:');
+				console.log(line);
+			}
+		}
+	}
+	for(var key in diffs) {
+		if(diffs[key]['expandableLines'] > 0) {
+			diffs[key]['expandedPercentage'] = diffs[key]['linesExpanded']/diffs[key]['expandableLines'];
+		}
+	}
+}
+
+function diffGazeAnalysis(diffs) {
+	for(var id in diffs) {
+		var diff = diffs[id]
+		var data = diff['gazeData'];
+		data['totalTime'] = 0;
+		data['totalCodeTime'] = 0;
+		data['additionTime'] = 0;
+		data['deletionTime'] = 0;
+		data['unchangedTime'] = 0;
+		for(var line of diff['allLineDetails']) {
+			data['totalTime'] += line['duration'];
+			if(line['target'] === 'diffCode') {
+				data['totalCodeTime'] += line['duration'];
+			}
+			switch(line['change']) {
+				case 'addition':
+					data['additionTime'] += line['duration'];
+					break;
+				case 'deletion':
+					data['deletionTime'] += line['duration'];
+					break;
+				case 'unchanged':
+					data['unchangedTime'] += line['duration'];
+					break;
+			}
+		}
+		data['additionPercentage'] = Math.round(100 * data['additionTime'] / data['totalCodeTime'])/100;
+		data['deletionPercentage'] = Math.round(100 * data['deletionTime'] / data['totalCodeTime'])/100;
+		data['unchangedPercentage'] = Math.round(100 * data['unchangedTime'] / data['totalCodeTime'])/100;
+		var averages = lineAverages(data['totalTime'], data['totalCodeTime'], diff['allLineDetails']);
+		for(var key in averages) {
+			data[key] = averages[key];
+		}
+	}
+}
+
+function lineAverages(totalTime, codeTime, lines) {
+	// Indent, length, index
+	var indentVal = 0;
+	var lengthVal = 0;
+	var indexVal = 0;
+	for(var line of lines) {
+		if(line['target'] === 'diffCode') {
+			indentVal += line['indentValue'] * line['duration'];
+			lengthVal += line['length'] * line['duration'];
+		}
+		indexVal += line['index'] * line['duration'];
+	}
+	return {
+		'indentAverage': Math.round(100 * indentVal / codeTime)/100,
+		'lengthAverage': Math.round(100 * lengthVal / codeTime)/100,
+		'indexAverage': Math.round(100 * indexVal / totalTime)/100
 	}
 }
 
