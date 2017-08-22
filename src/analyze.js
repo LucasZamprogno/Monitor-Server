@@ -546,6 +546,7 @@ function setupDiffs(analysis, data) {
 	for(var obj of data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
+				expandDiffData(diff);
 				for(var line of diff['allLineDetails']) {
 					line['viewDuration'] = 0;
 				}
@@ -553,6 +554,82 @@ function setupDiffs(analysis, data) {
 			}
 		}
 	}
+}
+
+function expandDiffData(diff) {
+	var lengths = [];
+	var indentations = [];
+	var changedRowIndexes = [];
+	var additions = 0;
+	var deletions = 0;
+	var unchanged = 0;
+	var additionLength = 0;
+	var deletionLength = 0;
+	var unchangedLength = 0;
+	var indentType = 'none';
+	for(var row of diff['allLineDetails']) {
+		try {
+			if(row['target'] === 'diffCode') {
+				lengths.push(row['length']);
+				indentations.push(row['indentValue']);
+				if(row['indentType'] !== 'none') {
+					if(indentType === 'none') {
+						indentType = row['indentType'];
+					} else if(row['indentType'] !== indentType) {
+						indentType = 'mixed';
+					}
+				}
+				switch(row['change']) {
+					case 'addition':
+						additions++;
+						additionLength += row['length'];
+						changedRowIndexes.push(row['index'])
+						break;
+					case 'deletion':
+						deletions++;
+						deletionLength += row['length'];
+						changedRowIndexes.push(row['index']);
+						break;
+					case 'unchanged':
+						unchanged++;
+						unchangedLength += row['length'];
+						break;
+				}
+			} else {
+				continue;
+			}
+		} catch (e) {
+			continue;
+		}
+	}
+	var totalLines = diff['allLineDetails'].length;
+	var totalCodeLines = additions + deletions + unchanged;
+	var totalChanges = changedRowIndexes.length;
+	var totalLength = additionLength + deletionLength + unchangedLength;
+	diff['totalLines'] = totalLines;
+	diff['totalCodeLines'] = totalCodeLines;
+	diff['totalChanges'] = totalChanges;
+	diff['additionLines'] = additions;
+	diff['additionPercentage'] = Math.round(100 * additions / totalCodeLines)/100;
+	diff['additionPercentageByLength'] = Math.round(100 * additionLength / totalLength)/100;
+	diff['additionLength'] = additionLength;
+	diff['deletionLines'] = deletions;
+	diff['deletionPercentage'] = Math.round(100 * deletions / totalCodeLines)/100;
+	diff['deletionPercentageByLength'] = Math.round(100 * deletionLength / totalLength)/100;
+	diff['deletionLength'] = deletionLength;
+	diff['unchangedLines'] = unchanged;
+	diff['unchangedPercentage'] = Math.round(100 * unchanged / totalCodeLines)/100;
+	diff['unchangedPercentageByLength'] = Math.round(100 * unchangedLength / totalLength)/100;
+	diff['unchangedLength'] = unchangedLength;
+	diff['medianChangeIndex'] = median(changedRowIndexes);
+	diff['indentType'] = indentType;
+	diff['medianIndent'] = median(indentations);
+	diff['averageIndent'] = Math.round(100 * avg(indentations))/100;
+	diff['minIndent'] = Math.min.apply(Math, indentations), // From https://stackoverflow.com/questions/1669190/find-the-min-max-element-of-an-array-in-javascrip;
+	diff['maxIndent'] = Math.max.apply(Math, indentations);
+	diff['medianLength'] = median(lengths);
+	diff['minLength'] = Math.min.apply(Math, lengths);
+	diff['maxLength'] = Math.max.apply(Math, lengths);
 }
 
 function isSameLine(line1, line2) {
@@ -589,4 +666,25 @@ function addTimesToLines(analysis, data) {
 			}
 		}
 	}
+}
+
+function median(arr) {
+	arr.sort(function(a,b){return a-b;});
+	if(arr.length === 0) {
+		return 0;
+	}
+	var mid = Math.floor(arr.length/2);
+	if(arr.length % 2) { // Odd
+		return arr[mid]
+	} else {
+		return (arr[mid - 1] + arr[mid]) / 2;
+	}
+}
+
+function avg(arr) {
+	sum = 0;
+	for(var item of arr) {
+		sum += item;
+	}
+	return sum/arr.length;
 }
