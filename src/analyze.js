@@ -617,17 +617,17 @@ function expandDiffData(diff) {
 	diff['totalCodeLines'] = totalCodeLines;
 	diff['totalChanges'] = totalChanges;
 	diff['additionLines'] = additions;
+	diff['additionLength'] = additionLength;
 	diff['additionPercentage'] = Math.round(100 * additions / totalCodeLines)/100;
 	diff['additionPercentageByLength'] = Math.round(100 * additionLength / totalLength)/100;
-	diff['additionLength'] = additionLength;
 	diff['deletionLines'] = deletions;
+	diff['deletionLength'] = deletionLength;
 	diff['deletionPercentage'] = Math.round(100 * deletions / totalCodeLines)/100;
 	diff['deletionPercentageByLength'] = Math.round(100 * deletionLength / totalLength)/100;
-	diff['deletionLength'] = deletionLength;
 	diff['unchangedLines'] = unchanged;
+	diff['unchangedLength'] = unchangedLength;
 	diff['unchangedPercentage'] = Math.round(100 * unchanged / totalCodeLines)/100;
 	diff['unchangedPercentageByLength'] = Math.round(100 * unchangedLength / totalLength)/100;
-	diff['unchangedLength'] = unchangedLength;
 	diff['expandableLines'] = expandable;
 	diff['linesExpanded'] = 0;
 	diff['innerExpansionsExpanded'] = 0;
@@ -640,7 +640,6 @@ function expandDiffData(diff) {
 	diff['medianLength'] = median(lengths);
 	diff['minLength'] = Math.min.apply(Math, lengths);
 	diff['maxLength'] = Math.max.apply(Math, lengths);
-	diff['gazeData'] = {};
 }
 
 function isSameLine(line1, line2) {
@@ -771,7 +770,6 @@ function makeDiffBlocks(lines) {
 	var i = 0;
 	while(i < lines.length) {
 		if(lines[i]['target'] !== 'diffCode') {
-			console.log('skipping ' + i);
 			i++;
 			continue;
 		}
@@ -797,7 +795,6 @@ function makeDiffBlocks(lines) {
 			}
 			i++
 		}
-		console.log('pushing ' + codeBlock['startIndex'] + ' to ' + codeBlock['endIndex']);
 		blocks.push(codeBlock);
 	}
 	return blocks;
