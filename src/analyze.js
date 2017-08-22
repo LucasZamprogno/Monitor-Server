@@ -439,7 +439,6 @@ function mergeCodeBlocks(data) {
 				'pageType': data[i]['pageType'],
 				'pageHref': data[i]['pageHref'],
 				'lines': []
-				// TODO add domain
 			};
 			if(data[i]['change'] === 'addition') {
 				codeBlock['linesStart'] = data[i]['newLineNum'];
@@ -744,6 +743,7 @@ function diffGazeAnalysis(diffs) {
 		for(var key in averages) {
 			data[key] = averages[key];
 		}
+		data['blocks'] = makeDiffBlocks(diff['allLineDetails']);
 	}
 }
 
@@ -766,6 +766,43 @@ function lineAverages(totalTime, codeTime, lines) {
 	}
 }
 
+function makeDiffBlocks(lines) {
+	var blocks = [];
+	var i = 0;
+	while(i < lines.length) {
+		if(lines[i]['target'] !== 'diffCode') {
+			console.log('skipping ' + i);
+			i++;
+			continue;
+		}
+		var codeBlock = {
+			'target': 'diffCode',
+			'file': lines[i]['file'],
+			'change': lines[i]['change'],
+			'startIndex': lines[i]['index'],
+			'endIndex': lines[i]['index'],
+			'numLines': 1,
+			'duration': lines[i]['duration'],
+			'length': lines[i]['length']
+		};
+		i++;
+		while(i < lines.length) {
+			if(lines[i]['target'] !== 'diffCode' || lines[i]['change'] !== codeBlock['change']) {
+				break;
+			} else {
+				codeBlock['endIndex']++;
+				codeBlock['numLines']++;
+				codeBlock['duration'] += lines[i]['duration'];
+				codeBlock['length'] += lines[i]['length'];
+			}
+			i++
+		}
+		console.log('pushing ' + codeBlock['startIndex'] + ' to ' + codeBlock['endIndex']);
+		blocks.push(codeBlock);
+	}
+	return blocks;
+}
+
 function median(arr) {
 	arr.sort(function(a,b){return a-b;});
 	if(arr.length === 0) {
@@ -773,7 +810,7 @@ function median(arr) {
 	}
 	var mid = Math.floor(arr.length/2);
 	if(arr.length % 2) { // Odd
-		return arr[mid]
+		return arr[mid];
 	} else {
 		return (arr[mid - 1] + arr[mid]) / 2;
 	}
