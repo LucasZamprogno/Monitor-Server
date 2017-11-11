@@ -10,9 +10,11 @@
   "scripts": {
     "cleanwin": "rmdir typings /s /q & rmdir node_modules /s /q & exit 0",
     "start": "node src/server.js",
-    "analyze": "node src/analyze.js"
+    "analyze": "node src/analyze.js",
+    "graph": "node src/graph.js"
   },
   "dependencies": {
-    "restify": "^4.0.3"
+    "restify": "^4.0.3",
+    "csv-write-stream": "^2.0.0"
   }
 }
