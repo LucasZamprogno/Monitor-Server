@@ -110,7 +110,7 @@ function analyzeFile(filename) {
 	mergeCodeBlocks(data);
 	mergeEvents(data);
 	data = data.filter(removeSmallGazes);
-	analysisData[filename]['timeline'] = getTimelineData(data);
+	//analysisData[filename]['timeline'] = getTimelineData(data);
 	//analysisData[filename]['raw'] = data;
 }
 
@@ -616,6 +616,7 @@ function expandDiffData(diff) {
 	diff['totalLines'] = totalLines;
 	diff['totalCodeLines'] = totalCodeLines;
 	diff['totalChanges'] = totalChanges;
+	diff['sourceFileTime'] = 0;
 	diff['additionLines'] = additions;
 	diff['additionLength'] = additionLength;
 	diff['additionPercentage'] = Math.round(100 * additions / totalCodeLines)/100;
@@ -640,6 +641,15 @@ function expandDiffData(diff) {
 	diff['medianLength'] = median(lengths);
 	diff['minLength'] = Math.min.apply(Math, lengths);
 	diff['maxLength'] = Math.max.apply(Math, lengths);
+	diff['gazeData'] = {
+		'totalTime': 0,
+		'totalCodeTime': 0,
+		'additionTime': 0,
+		'deletionTime': 0,
+		'unchangedTime': 0,
+		'expandedTime': 0,
+		'fullFileTime': 0
+	};
 }
 
 function isSameLine(line1, line2) {
@@ -668,11 +678,21 @@ function addTimesToLines(analysis, data) {
 				console.log('Following object could not be matched to any diff:');
 				console.log(obj);
 			} else {
+				if(obj['target'] === 'diffCode' && obj['change'] === 'expanded') {
+					analysis['diffs'][id]['gazeData']['expandedTime'] += obj['duration'];
+				}
 				for(var line of analysis['diffs'][id]['allLineDetails']) {
 					if(isSameLine(obj, line)) {
 						line['duration'] += obj['duration'];
 						break;
 					}
+				}
+			}
+		} else if(obj['type'] === 'gaze' && obj['target'] === 'fileCode') {
+			for(var id in analysis['diffs']) {
+				if(analysis['diffs'][id]['file'] === obj['file']) {
+					analysis['diffs'][id]['sourceFileTime'] += obj['duration'];
+					// No break, could have multiple diffs from same file
 				}
 			}
 		}
@@ -713,11 +733,6 @@ function diffGazeAnalysis(diffs) {
 	for(var id in diffs) {
 		var diff = diffs[id]
 		var data = diff['gazeData'];
-		data['totalTime'] = 0;
-		data['totalCodeTime'] = 0;
-		data['additionTime'] = 0;
-		data['deletionTime'] = 0;
-		data['unchangedTime'] = 0;
 		for(var line of diff['allLineDetails']) {
 			data['totalTime'] += line['duration'];
 			if(line['target'] === 'diffCode') {
@@ -735,17 +750,21 @@ function diffGazeAnalysis(diffs) {
 					break;
 			}
 		}
+		data['totalTime'] += data['expandedTime'];
+		data['totalCodeTime'] += data['expandedTime'];
 		data['additionPercentage'] = Math.round(100 * data['additionTime'] / data['totalCodeTime'])/100;
 		data['deletionPercentage'] = Math.round(100 * data['deletionTime'] / data['totalCodeTime'])/100;
 		data['unchangedPercentage'] = Math.round(100 * data['unchangedTime'] / data['totalCodeTime'])/100;
+		data['expandedPercentage'] = Math.round(100 * data['expandedTime'] / data['totalCodeTime'])/100;
 		var averages = lineAverages(data['totalTime'], data['totalCodeTime'], diff['allLineDetails']);
 		for(var key in averages) {
 			data[key] = averages[key];
 		}
-		data['blocks'] = makeDiffBlocks(diff['allLineDetails']);
+		diff['blocks'] = makeDiffBlocks(diff['allLineDetails']);
 	}
 }
 
+// This doesn't take into account expanded lines
 function lineAverages(totalTime, codeTime, lines) {
 	// Indent, length, index
 	var indentVal = 0;
