@@ -162,7 +162,7 @@ function extractDiffs(obj) {
 }
 
 function extractLineGazes(obj) {
-	return obj.hasOwnProperty('index');
+	return obj.hasOwnProperty('index') && obj['type'] == 'gaze';
 }
 // This could be made more generic by making timestamp a parameter. Not sure it would ever be useful
 function sortByTimestamp(arr) {
@@ -215,16 +215,18 @@ function setupDiffs(data) {
 	for(var obj of data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
-				analysis['diffs'][diffID(diff)] = {
-					'file': diff['file'],
-					'href': diff['href'],
-					'index': diff['diffIndex'],
-					'allLineDetails': diff['allLineDetails'],
-					'numLines': diff['allLineDetails'].length,
-					'metaIndexMap': makeIndexMap(diff)
-				};
-				modifyDiffLines(diffID(diff));
-				analysis['lines'][diffID(diff)] = [];
+				if(diff !== null) {
+					analysis['diffs'][diffID(diff)] = {
+						'file': diff['file'],
+						'href': diff['href'],
+						'index': diff['diffIndex'],
+						'allLineDetails': diff['allLineDetails'],
+						'numLines': diff['allLineDetails'].length,
+						'metaIndexMap': makeIndexMap(diff)
+					};
+					modifyDiffLines(diffID(diff));
+					analysis['lines'][diffID(diff)] = [];
+				}
 			}
 		}
 
@@ -286,19 +288,21 @@ function diffID(obj) {
 function processLines(data) {
 	var startTime = data[0]['timestamp'];
 	for(var line of data) {
-		var meta = analysis['diffs'][diffID(line)]['metaIndexMap'][indexKey(line)];
-		var obj = {
-			'start': line['timestamp'] - startTime,
-			'end': line['timestampEnd'] - startTime,
-			'change': line['change'],
-			'diffIndex': line['diffIndex'],
-			'index': line['index'],
-			'metaIndex': meta
+		if(analysis['diffs'].hasOwnProperty(diffID(line))) {
+			var meta = analysis['diffs'][diffID(line)]['metaIndexMap'][indexKey(line)];
+			var obj = {
+				'start': line['timestamp'] - startTime,
+				'end': line['timestampEnd'] - startTime,
+				'change': line['change'],
+				'diffIndex': line['diffIndex'],
+				'index': line['index'],
+				'metaIndex': meta
+			}
+			if(line['target'] === 'Expandable line details') {
+				obj['change'] = 'expandable';
+			}
+			analysis['lines'][diffID(line)].push(obj);	
 		}
-		if(line['target'] === 'Expandable line details') {
-			obj['change'] = 'expandable';
-		}
-		analysis['lines'][diffID(line)].push(obj);
 	}
 }
 

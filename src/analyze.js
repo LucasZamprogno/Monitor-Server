@@ -547,14 +547,16 @@ function setupDiffs(analysis, data) {
 	for(var obj of data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
-				expandDiffData(diff);
-				for(var line of diff['allLineDetails']) {
-					line['duration'] = 0;
-					if(line['target'] === 'Expandable line details') {
-						line['clicked'] = false;
+				if(diff !== null) {
+					expandDiffData(diff);
+					for(var line of diff['allLineDetails']) {
+						line['duration'] = 0;
+						if(line['target'] === 'Expandable line details') {
+							line['clicked'] = false;
+						}
 					}
+					analysis['diffs'][diffID(diff)] = diff;
 				}
-				analysis['diffs'][diffID(diff)] = diff;
 			}
 		}
 	}
