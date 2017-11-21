@@ -1,7 +1,7 @@
 var fs = require('fs');
 var csvWriter = require('csv-write-stream');
 var config = {
-	'ignore': 100, // Remove all gazes less than this (ms) completely
+	'ignore': 50, // Remove all gazes less than this (ms) completely
 	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
 	'code': 150, // Merging code lines
 	'lines': 4,
@@ -99,6 +99,7 @@ function makeCSV(file) {
 	var diffData = data.filter(extractDiffs);
 	setupDiffs(diffData);
 	mergeEvents(lineData);
+	lineData = lineData.filter(signitifcantGazes);
 	sortByTimestamp(lineData);
 	processLines(lineData);
 	printData(file);
@@ -163,6 +164,10 @@ function extractDiffs(obj) {
 
 function extractLineGazes(obj) {
 	return obj.hasOwnProperty('index') && obj['type'] == 'gaze';
+}
+
+function signitifcantGazes(obj) {
+	return obj['duration'] && obj['duration'] > config['ignore'];
 }
 // This could be made more generic by making timestamp a parameter. Not sure it would ever be useful
 function sortByTimestamp(arr) {
