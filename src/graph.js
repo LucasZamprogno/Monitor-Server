@@ -5,6 +5,8 @@ var config = {
 	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
 	'code': 150, // Merging code lines
 	'lines': 4,
+	'dots': false,
+	'spacing': 10
 };
 
 const PATH_IN = './Data';
@@ -85,8 +87,12 @@ function updateConfig() {
 		var split = param.split('=');
 		var key = split[0];
 		var val = split[1];
-		// This is useless for now, probably will use later
 		switch(key) {
+			case 'dots':
+				if(val.toLowerCase() == 'true') {
+					config[key] = true;
+				}
+				break;
 			default: // All int values
 				config[key] = parseInt(val);
 		}
@@ -95,6 +101,9 @@ function updateConfig() {
 
 function makeCSV(file) {
 	var data = pullData(file);
+	if(file.endsWith('.txt')) {
+		file = file.substr(0, file.length - 4);
+	}
 	var lineData = data.filter(extractLineGazes);
 	var diffData = data.filter(extractDiffs);
 	setupDiffs(diffData);
@@ -102,6 +111,9 @@ function makeCSV(file) {
 	lineData = lineData.filter(signitifcantGazes);
 	sortByTimestamp(lineData);
 	processLines(lineData);
+	if(config['dots']) {
+		splitToDots();
+	}
 	printData(file);
 }
 
@@ -118,17 +130,25 @@ function printData(file) {
 				if(!fs.existsSync(PATH_OUT + '/' + file + '/' + diff)) {
 					fs.mkdirSync(PATH_OUT + '/' + file + '/' + diff);
 				}
-
+				
 				var filepath = PATH_OUT + '/' + file + '/' + diff + '/gazes.csv';
-				var writer = csvWriter({ headers: ['start', 'end', 'type','index']})
-				writer.pipe(fs.createWriteStream(filepath))
-				for(var line of analysis['lines'][diff]) {
-					writer.write(lineValuesToArray(line));
+				if(config['dots']) {
+					var writer = csvWriter({ headers: ['timestamp', 'index', 'commitIndex']})
+					writer.pipe(fs.createWriteStream(filepath))
+					for(var line of analysis['lines'][diff]) {
+						writer.write(dotValuesToArray(line));
+					}
+				} else{
+					var writer = csvWriter({ headers: ['start', 'end', 'type','index', 'commitIndex']})
+					writer.pipe(fs.createWriteStream(filepath))
+					for(var line of analysis['lines'][diff]) {
+						writer.write(spanValuesToArray(line));
+					}
 				}
 				writer.end()		
 
 				filepath = PATH_OUT + '/' + file + '/' + diff + '/lines.csv';
-				writer = csvWriter({ headers: ['index', 'type']})
+				writer = csvWriter({ headers: ['index', 'type', 'commitIndex']})
 				writer.pipe(fs.createWriteStream(filepath))
 				for(var line of analysis['diffs'][diff]['allLineDetails']) {
 					writer.write(diffLineValuesToArray(line));
@@ -144,7 +164,7 @@ function printData(file) {
 function pullData(file) {
 	var data = [];
 	try {
-		var contentSplit = fs.readFileSync(PATH_IN + '/' + file + '.txt', 'utf8').split('\r\n');
+		var contentSplit = fs.readFileSync(PATH_IN + '/' + file, 'utf8').split('\r\n');
 	} catch (e) {
 		console.log('Error trying to read ' + file + ':');
 		console.log(e.message);
@@ -216,18 +236,18 @@ function shouldBeSameGaze(obj1, obj2) {
 }
 
 function setupDiffs(data) {
-	// I heard you like iteration
 	for(var obj of data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
 				if(diff !== null) {
 					analysis['diffs'][diffID(diff)] = {
 						'file': diff['file'],
-						'href': diff['href'],
+						'href': diff['pageHref'],
 						'index': diff['diffIndex'],
 						'allLineDetails': diff['allLineDetails'],
 						'numLines': diff['allLineDetails'].length,
-						'metaIndexMap': makeIndexMap(diff)
+						'newIndexMap': makeIndexMap(diff),
+						'offset': commitIndexOffset(diff['diffIndex'], diff['pageHref'])
 					};
 					modifyDiffLines(diffID(diff));
 					analysis['lines'][diffID(diff)] = [];
@@ -275,6 +295,39 @@ function makeIndexMap(diff) {
 	return indexMap;
 }
 
+function commitIndexOffset(ind, href) {
+	var oldDiff = href + '-' + (parseInt(ind)-1)
+	if(analysis['diffs'][oldDiff]) {
+		// + 1 because we'll add a separator line
+		return analysis['diffs'][oldDiff]['offset'] + analysis['diffs'][oldDiff]['numLines'] + 1;
+	} else {
+		return 0;
+	}
+	
+}
+
+function splitToDots() {
+	for(var diff in analysis['lines']) {
+		arr = analysis['lines'][diff];
+		if(arr && arr.length) {
+			var i = 0;
+			var ts = arr[i]['start'];
+			var newArr = [];
+			while(i < arr.length) {
+				if(arr[i]['start'] <= ts && ts < arr[i]['end']) { // In current
+					newArr.push({'timestamp': ts, 'newIndex': arr[i]['newIndex'], 'commitIndex': arr[i]['commitIndex']});
+					ts += config['spacing'];
+				} else if(ts < arr[i]['start']) { // Next object further in time
+					ts += config['spacing'];
+				} else {
+					i++;
+				}
+			}
+			analysis['lines'][diff] = newArr;
+		}
+	}
+}
+
 function indexKey(line) {
 	if(line['target'] === "Expandable line details") {
 		return line['index'].toString() + 'expandable'
@@ -294,14 +347,19 @@ function processLines(data) {
 	var startTime = data[0]['timestamp'];
 	for(var line of data) {
 		if(analysis['diffs'].hasOwnProperty(diffID(line))) {
-			var meta = analysis['diffs'][diffID(line)]['metaIndexMap'][indexKey(line)];
+			var meta = analysis['diffs'][diffID(line)]['newIndexMap'][indexKey(line)];
+			var offset = analysis['diffs'][diffID(line)]['offset']
+			if(!meta) {
+				meta = -1;
+			}
 			var obj = {
 				'start': line['timestamp'] - startTime,
 				'end': line['timestampEnd'] - startTime,
 				'change': line['change'],
 				'diffIndex': line['diffIndex'],
 				'index': line['index'],
-				'metaIndex': meta
+				'newIndex': meta,
+				'commitIndex': meta + offset
 			}
 			if(line['target'] === 'Expandable line details') {
 				obj['change'] = 'expandable';
@@ -313,7 +371,7 @@ function processLines(data) {
 
 function modifyDiffLines(id) {
 	for(var line of analysis['diffs'][id]['allLineDetails']) {
-		line['metaIndex'] = analysis['diffs'][id]['metaIndexMap'][indexKey(line)];
+		line['newIndex'] = analysis['diffs'][id]['newIndexMap'][indexKey(line)];
 		if(line['target'] === 'Expandable line details') {
 			line['change'] = 'expandable';
 		}
@@ -321,10 +379,14 @@ function modifyDiffLines(id) {
 }
 
 
-function lineValuesToArray(line) {
-	return [line['start'], line['end'], line['change'], line['metaIndex']];
+function spanValuesToArray(line) {
+	return [line['start'], line['end'], line['change'], line['newIndex'], line['commitIndex']];
+}
+
+function dotValuesToArray(line) {
+	return [line['timestamp'], line['newIndex'], line['commitIndex']];
 }
 
 function diffLineValuesToArray(line) {
-	return [line['metaIndex'], line['change']]
+	return [line['newIndex'], line['change'], line['commitIndex']]
 }
