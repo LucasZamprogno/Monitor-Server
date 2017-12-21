@@ -5,7 +5,7 @@ var config = {
 	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
 	'code': 150, // Merging code lines
 	'lines': 4,
-	'dots': false,
+	'dots': true,
 	'spacing': 10
 };
 
@@ -299,14 +299,17 @@ function makeIndexMap(diff) {
 }
 
 function commitIndexOffset(ind, href) {
-	var oldDiff = href + '-' + (parseInt(ind)-1)
-	if(analysis['diffs'][oldDiff]) {
-		// + 1 because we'll add a separator line
-		return analysis['diffs'][oldDiff]['offset'] + analysis['diffs'][oldDiff]['numLines'] + 1;
-	} else {
-		return 0;
+	var oldDiff = null;
+	var i = parseInt(ind);
+	while(i > 0) {
+		var oldDiff = href + '-' + (i-1)
+		if(analysis['diffs'][oldDiff]) {
+			// + 1 because we'll add a separator line
+			return analysis['diffs'][oldDiff]['offset'] + analysis['diffs'][oldDiff]['numLines'] + 1;
+		}
+		i--;
 	}
-	
+	return 0;
 }
 
 function splitToDots() {
@@ -347,14 +350,13 @@ function diffID(obj) {
 }
 
 function processLines(data) {
-	console.log(data.length)
 	var startTime = data[0]['timestamp'];
 	for(var line of data) {
 		if(analysis['diffs'].hasOwnProperty(diffID(line))) {
 			var meta = analysis['diffs'][diffID(line)]['newIndexMap'][indexKey(line)];
 			var offset = analysis['diffs'][diffID(line)]['offset']
-			if(!meta) {
-				meta = -1;
+			if(typeof meta === 'undefined' || meta === null) {
+				meta = -99999;
 			}
 			var obj = {
 				'start': line['timestamp'] - startTime,

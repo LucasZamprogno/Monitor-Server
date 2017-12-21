@@ -52,7 +52,7 @@ class CommitPlot:
         plt.title("Gaze position over time")
         plt.ylim(self.numRows-1, 0)
         plt.xlim(0, self.maxTimestamp)
-        if showFull:
+        if show:
             plt.show()
         plt.savefig(self.path + '/fig.png')
 
@@ -134,8 +134,6 @@ class DiffPlot:
         plt.title("Gaze position over time")
         plt.ylim(self.numRows-1, 0)
         plt.xlim(0, self.maxTimestamp)
-        if showSub:
-            plt.show()
         plt.savefig(self.path + '/fig.png')
 
 
@@ -155,7 +153,6 @@ def run_only(file):
 
 
 root = 'Graph/'
-showSub = False
-showFull = True
-addLine = False
-run_only('Felix')
+show = True
+addLine = False  # Leave this false until the feature isn't broken
+run_only('Felix - Fixed')
