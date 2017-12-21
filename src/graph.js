@@ -100,6 +100,7 @@ function updateConfig() {
 }
 
 function makeCSV(file) {
+	console.log(file)
 	var data = pullData(file);
 	if(file.endsWith('.txt')) {
 		file = file.substr(0, file.length - 4);
@@ -110,11 +111,13 @@ function makeCSV(file) {
 	mergeEvents(lineData);
 	lineData = lineData.filter(signitifcantGazes);
 	sortByTimestamp(lineData);
-	processLines(lineData);
-	if(config['dots']) {
-		splitToDots();
+	if(lineData.length) {
+		processLines(lineData);
+		if(config['dots']) {
+			splitToDots();
+		}
+		printData(file);	
 	}
-	printData(file);
 }
 
 function printData(file) {
@@ -344,6 +347,7 @@ function diffID(obj) {
 }
 
 function processLines(data) {
+	console.log(data.length)
 	var startTime = data[0]['timestamp'];
 	for(var line of data) {
 		if(analysis['diffs'].hasOwnProperty(diffID(line))) {

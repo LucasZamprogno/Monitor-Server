@@ -24,7 +24,7 @@ class CommitPlot:
                 diff.readCSVs()
                 self.diffs.append(diff)
                 self.xValues.extend(diff.xValues)
-                self.yValues.extend(diff.yValues)
+                self.yValues.extend(diff.commitIndices)
                 self.diffRows.extend(diff.diffRows)
                 self.diffRows.append({})
                 self.colourValues.extend(diff.colourValues)
@@ -44,14 +44,18 @@ class CommitPlot:
     def plot(self):
         fig, ax = plt.subplots()
         ax.barh(range(len(self.barValues)), self.barValues, height=1, color=self.colourValues)
-        plt.plot(self.xValues, self.yValues, color='#bbbbbb')
+        if addLine:
+            plt.plot(self.xValues, self.yValues, color='#bbbbbb')
         ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
         plt.xlabel('Relative timestamp (ms)')
         plt.ylabel('Diff line')
         plt.title("Gaze position over time")
         plt.ylim(self.numRows-1, 0)
         plt.xlim(0, self.maxTimestamp)
+        if showFull:
+            plt.show()
         plt.savefig(self.path + '/fig.png')
+
 
 class DiffPlot:
     def __init__(self, path):
@@ -78,16 +82,16 @@ class DiffPlot:
                 if self.dots:
                     if int(row[0]) > self.maxTimestamp:
                         self.maxTimestamp = int(row[0])
-                    self.xValues.append(int(row[0])) # timestamp
-                    self.yValues.append(int(row[1])) # index
+                    self.xValues.append(int(row[0]))  # timestamp
+                    self.yValues.append(int(row[1]))  # index
                     self.commitIndices.append(int(row[2]))  # commit index
                 else:
                     if int(row[1]) > self.maxTimestamp:
                         self.maxTimestamp = int(row[1])
-                    self.xValues.append(int(row[0])) # start
-                    self.xValues.append(int(row[1])) # end
-                    self.yValues.append(int(row[3])) # index
-                    self.yValues.append(int(row[3])) # index
+                    self.xValues.append(int(row[0]))  # start
+                    self.xValues.append(int(row[1]))  # end
+                    self.yValues.append(int(row[3]))  # index
+                    self.yValues.append(int(row[3]))  # index
                     self.commitIndices.append(int(row[4]))  # commit index
                     self.commitIndices.append(int(row[4]))  # commit index
 
@@ -122,20 +126,36 @@ class DiffPlot:
     def plot(self):
         fig, ax = plt.subplots()
         ax.barh(range(len(self.barValues)), self.barValues, height=1, color=self.colourValues)
-        plt.plot(self.xValues, self.yValues, color='#bbbbbb')
+        if addLine:
+            plt.plot(self.xValues, self.yValues, color='#bbbbbb')
         ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
         plt.xlabel('Relative timestamp (ms)')
         plt.ylabel('Diff line')
         plt.title("Gaze position over time")
         plt.ylim(self.numRows-1, 0)
         plt.xlim(0, self.maxTimestamp)
+        if showSub:
+            plt.show()
         plt.savefig(self.path + '/fig.png')
 
 
-root = 'Graph/'
-for subdir in os.listdir(root):
-    print("Graphing " + subdir)
-    plot = CommitPlot(root + subdir)
+def run_all():
+    for subdir in os.listdir(root):
+        print("Graphing " + subdir)
+        plot = CommitPlot(root + subdir)
+        plot.plotSubplots()
+        plot.plot()
+
+def run_only(file):
+    print("Graphing " + file)
+    plot = CommitPlot(root + file)
     plot.plotSubplots()
     plot.plot()
 
+
+
+root = 'Graph/'
+showSub = False
+showFull = True
+addLine = False
+run_only('Felix')
