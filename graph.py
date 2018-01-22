@@ -129,6 +129,9 @@ class DiffPlot:
         if addLine:
             plt.plot(self.xValues, self.yValues, color='#bbbbbb')
         ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
+        # greenThrowaway = plt.Line2D((0, 1), (0, 0), color='green')
+        # redThrowaway = plt.Line2D((0, 1), (0, 0), color='red')
+        # plt.legend([greenThrowaway, redThrowaway], ['Green', 'Red'])
         plt.xlabel('Relative timestamp (ms)')
         plt.ylabel('Diff line')
         plt.title("Gaze position over time")
@@ -155,4 +158,4 @@ def run_only(file):
 root = 'Graph/'
 show = True
 addLine = False  # Leave this false until the feature isn't broken
-run_only('Felix - Fixed')
+run_only('S2')
