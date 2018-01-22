@@ -1,3 +1,9 @@
+/*
+This file is a nightmare spawned by changing desires.
+If you want to change something small, good luck.
+Otherwise, I suggest rewriting it completely.
+*/
+
 var fs = require('fs');
 const PATH_IN = './Data';
 const PATH_OUT = './Analysis'
@@ -101,11 +107,12 @@ function analyzeFile(filename) {
 		return;
 	}
 	analysisData[filename] = {};
-	analysisData[filename]['metadata'] = getMetaData(data);
+	analysisData[filename]['metaData'] = getMetaData(data);
 	setupDiffs(analysisData[filename], data);
 	addTimesToLines(analysisData[filename], data);
-	expansionAnalysis(analysisData[filename]['diffs'], data);
-	diffGazeAnalysis(analysisData[filename]['diffs']);
+	expansionAnalysis(analysisData[filename], data);
+	diffGazeAnalysis(analysisData[filename]);
+	finalMetaAnalysisPass(analysisData[filename]);
 	sortByTimestamp(data);
 	mergeCodeBlocks(data);
 	mergeEvents(data);
@@ -120,6 +127,10 @@ function writeAllAnalysis() {
 	}
 	for(var id in analysisData) {
 		var filepath = PATH_OUT + '/' + id; // id will end in .txt
+		delete analysisData[id]['diffs']['allLineDetails'];
+		for(var diff in analysisData[id]['diffs']) {
+			delete analysisData[id]['diffs'][diff]['allLineDetails'];
+		}
 		fs.writeFileSync(filepath, JSON.stringify(analysisData[id]));
 	}
 }
@@ -164,7 +175,6 @@ function getMetaData(arr) {
 	var allDomainTimes = {};
 	var pageChanges = 0;
 	var fileTimes = {};
-	var codeTimes = {};
 	for(var obj of arr) {
 		switch(obj['type']) {
 			case 'gaze':
@@ -172,9 +182,6 @@ function getMetaData(arr) {
 				trackedTime += duration;
 				if(obj.hasOwnProperty('file')) {
 					addTo(fileTimes, obj['file'], duration);
-				}
-				if(obj['target'] === 'diffCode') {
-					addTo(codeTimes, obj['change'], duration);
 				}
 				addTo(allDomainTimes, obj['domain'], duration);
 				break;
@@ -193,19 +200,11 @@ function getMetaData(arr) {
 		}
 	}
 	totalGazeTime = untrackedTime + trackedTime;
-	for(var type in codeTimes) {
-		totalCodeGazeTime += codeTimes[type];
-	}
 	metaData['totalTime'] = msToTime(totalTime);
 	metaData['trackedTime'] = msToTime(trackedTime);
 	metaData['trackedTimePercent'] = (Math.round(1000 * trackedTime / totalGazeTime) / 10);
 	metaData['untrackedTime'] = msToTime(untrackedTime);
 	metaData['untrackedTimePercent'] = (Math.round(1000 * untrackedTime / totalGazeTime) / 10);
-	if(totalCodeGazeTime > 0){
-		for(var type in codeTimes) {
-			metaData[type + 'Percent'] = (Math.round(1000 * codeTimes[type] / totalCodeGazeTime) / 10);
-		}
-	}
 	if(JSON.stringify(fileTimes) !== '{}'){
 		for(var file in fileTimes) {
 			fileTimes[file] = msToTime(fileTimes[file]);
@@ -217,6 +216,32 @@ function getMetaData(arr) {
 	for(var domain in metaData['domainTimes']) {
 		metaData['domainTimes'][domain] = msToTime(metaData['domainTimes'][domain]);
 	}
+	// For later
+	metaData['totalCommitTime'] = 0;
+	metaData['totalCodeTime'] = 0;
+	metaData['totalLines'] = 0;
+	metaData['totalCodeLines'] = 0;
+	metaData['totalChanges'] = 0;
+	metaData['totalIndent'] = 0;
+	metaData['totalLength'] = 0;
+	metaData['sourceFileTime'] = 0;
+	metaData['indentRaw'] = 0;
+	metaData['lengthRaw'] = 0;
+	metaData['indexRaw'] = 0;
+	metaData['additionRaw'] = 0;
+	metaData['deletionRaw'] = 0;
+	metaData['unchangedRaw'] = 0;
+	metaData['expandedRaw'] = 0;
+	metaData['additionLines'] = 0;
+	metaData['additionLength'] = 0;
+	metaData['deletionLines'] = 0;
+	metaData['deletionLength'] = 0;
+	metaData['unchangedLines'] = 0;
+	metaData['unchangedLength'] = 0;
+	metaData['expandableLines'] = 0;
+	metaData['linesExpanded'] = 0;
+	metaData['innerExpansionsExpanded'] = 0;
+	metaData['indentType'] = 'none';
 	return metaData;
 }
 
@@ -548,7 +573,7 @@ function setupDiffs(analysis, data) {
 		if(obj['type'] === 'diffs') {
 			for(var diff of obj['diffs']) {
 				if(diff !== null) {
-					expandDiffData(diff);
+					expandDiffData(analysis, diff);
 					for(var line of diff['allLineDetails']) {
 						line['duration'] = 0;
 						if(line['target'] === 'Expandable line details') {
@@ -562,7 +587,7 @@ function setupDiffs(analysis, data) {
 	}
 }
 
-function expandDiffData(diff) {
+function expandDiffData(analysis, diff) {
 	var lengths = [];
 	var indentations = [];
 	var changedRowIndexes = [];
@@ -621,16 +646,16 @@ function expandDiffData(diff) {
 	diff['sourceFileTime'] = 0;
 	diff['additionLines'] = additions;
 	diff['additionLength'] = additionLength;
-	diff['additionPercentage'] = Math.round(100 * additions / totalCodeLines)/100;
-	diff['additionPercentageByLength'] = Math.round(100 * additionLength / totalLength)/100;
+	diff['additionPercentage'] = Math.round(1000 * additions / totalCodeLines)/10;
+	diff['additionPercentageByLength'] = Math.round(1000 * additionLength / totalLength)/10;
 	diff['deletionLines'] = deletions;
 	diff['deletionLength'] = deletionLength;
-	diff['deletionPercentage'] = Math.round(100 * deletions / totalCodeLines)/100;
-	diff['deletionPercentageByLength'] = Math.round(100 * deletionLength / totalLength)/100;
+	diff['deletionPercentage'] = Math.round(1000 * deletions / totalCodeLines)/10;
+	diff['deletionPercentageByLength'] = Math.round(1000 * deletionLength / totalLength)/10;
 	diff['unchangedLines'] = unchanged;
 	diff['unchangedLength'] = unchangedLength;
-	diff['unchangedPercentage'] = Math.round(100 * unchanged / totalCodeLines)/100;
-	diff['unchangedPercentageByLength'] = Math.round(100 * unchangedLength / totalLength)/100;
+	diff['unchangedPercentage'] = Math.round(1000 * unchanged / totalCodeLines)/10;
+	diff['unchangedPercentageByLength'] = Math.round(1000 * unchangedLength / totalLength)/10;
 	diff['expandableLines'] = expandable;
 	diff['linesExpanded'] = 0;
 	diff['innerExpansionsExpanded'] = 0;
@@ -638,7 +663,7 @@ function expandDiffData(diff) {
 	diff['indentType'] = indentType;
 	diff['medianIndent'] = median(indentations);
 	diff['averageIndent'] = Math.round(100 * avg(indentations))/100;
-	diff['minIndent'] = Math.min.apply(Math, indentations), // From https://stackoverflow.com/questions/1669190/find-the-min-max-element-of-an-array-in-javascrip;
+	diff['minIndent'] = Math.min.apply(Math, indentations); // From https://stackoverflow.com/questions/1669190/find-the-min-max-element-of-an-array-in-javascrip;
 	diff['maxIndent'] = Math.max.apply(Math, indentations);
 	diff['medianLength'] = median(lengths);
 	diff['minLength'] = Math.min.apply(Math, lengths);
@@ -652,6 +677,28 @@ function expandDiffData(diff) {
 		'expandedTime': 0,
 		'fullFileTime': 0
 	};
+	/////////////////////////
+	analysis['metaData']['totalIndent'] += indentations.reduce((a,b) => {return a+b});
+	analysis['metaData']['totalLength'] += lengths.reduce((a,b) => {return a+b});
+	analysis['metaData']['totalLines'] += totalLines;
+	analysis['metaData']['totalCodeLines'] += totalCodeLines;
+	analysis['metaData']['totalChanges'] += totalChanges;
+	analysis['metaData']['additionLines'] += additions;
+	analysis['metaData']['additionLength'] += additionLength;
+	analysis['metaData']['deletionLines'] += deletions;
+	analysis['metaData']['deletionLength'] += deletionLength;
+	analysis['metaData']['unchangedLines'] += unchanged;
+	analysis['metaData']['unchangedLength'] += unchangedLength;
+	analysis['metaData']['expandableLines'] += expandable;
+	if(analysis['metaData']['indentType'] !== 'none' && indentType !== 'none') {
+		if(analysis['metaData']['indentType'] !== indentType) {
+			analysis['metaData']['indentType'] = 'mixed';
+		} else {
+			analysis['metaData']['indentType'] = indentType;
+		}
+	} else {
+		analysis['metaData']['indentType'] = indentType;
+	}
 }
 
 function isSameLine(line1, line2) {
@@ -701,7 +748,8 @@ function addTimesToLines(analysis, data) {
 	}
 }
 
-function expansionAnalysis(diffs, data) {
+function expansionAnalysis(analysis, data) {
+	var diffs = analysis['diffs'];
 	for(var line of data) {
 		if(line['type'] === 'click' && line['target'] === 'Expandable line button') {
 			var id = diffID(line);
@@ -714,8 +762,10 @@ function expansionAnalysis(diffs, data) {
 					}
 				}
 				if(found) {
+					analysis[id]['metaData']['linesExpanded']++;
 					diffs[id]['linesExpanded']++;
 				} else {
+					analysis[id]['metaData']['innerExpansionsExpanded']++;
 					diffs[id]['innerExpansionsExpanded']++;
 				}
 			} else { // Should never happen
@@ -731,15 +781,23 @@ function expansionAnalysis(diffs, data) {
 	}
 }
 
-function diffGazeAnalysis(diffs) {
-	for(var id in diffs) {
-		var diff = diffs[id]
+function diffGazeAnalysis(analysis) {
+	for(var id in analysis['diffs']) {
+		var diff = analysis['diffs'][id]
 		var data = diff['gazeData'];
+		var indentVal = 0;
+		var lengthVal = 0;
+		var indexVal = 0;
 		for(var line of diff['allLineDetails']) {
 			data['totalTime'] += line['duration'];
 			if(line['target'] === 'diffCode') {
 				data['totalCodeTime'] += line['duration'];
 			}
+			if(line['target'] === 'diffCode') {
+				indentVal += line['indentValue'] * line['duration'];
+				lengthVal += line['length'] * line['duration'];
+			}
+			indexVal += line['index'] * line['duration'];
 			switch(line['change']) {
 				case 'addition':
 					data['additionTime'] += line['duration'];
@@ -754,35 +812,20 @@ function diffGazeAnalysis(diffs) {
 		}
 		data['totalTime'] += data['expandedTime'];
 		data['totalCodeTime'] += data['expandedTime'];
-		data['additionPercentage'] = Math.round(100 * data['additionTime'] / data['totalCodeTime'])/100;
-		data['deletionPercentage'] = Math.round(100 * data['deletionTime'] / data['totalCodeTime'])/100;
-		data['unchangedPercentage'] = Math.round(100 * data['unchangedTime'] / data['totalCodeTime'])/100;
-		data['expandedPercentage'] = Math.round(100 * data['expandedTime'] / data['totalCodeTime'])/100;
-		var averages = lineAverages(data['totalTime'], data['totalCodeTime'], diff['allLineDetails']);
-		for(var key in averages) {
-			data[key] = averages[key];
-		}
+		data['additionPercentage'] = Math.round(1000 * data['additionTime'] / data['totalCodeTime'])/10;
+		data['deletionPercentage'] = Math.round(1000 * data['deletionTime'] / data['totalCodeTime'])/10;
+		data['unchangedPercentage'] = Math.round(1000 * data['unchangedTime'] / data['totalCodeTime'])/10;
+		data['expandedPercentage'] = Math.round(1000 * data['expandedTime'] / data['totalCodeTime'])/10;
+		data['indentAverage'] = Math.round(100 * indentVal / data['totalCodeTime'])/100,
+		data['lengthAverage'] = Math.round(100 * lengthVal / data['totalCodeTime'])/100,
+		data['indexAverage'] = Math.round(100 * indexVal / data['totalTime'])/100
 		diff['blocks'] = makeDiffBlocks(diff['allLineDetails']);
-	}
-}
-
-// This doesn't take into account expanded lines
-function lineAverages(totalTime, codeTime, lines) {
-	// Indent, length, index
-	var indentVal = 0;
-	var lengthVal = 0;
-	var indexVal = 0;
-	for(var line of lines) {
-		if(line['target'] === 'diffCode') {
-			indentVal += line['indentValue'] * line['duration'];
-			lengthVal += line['length'] * line['duration'];
-		}
-		indexVal += line['index'] * line['duration'];
-	}
-	return {
-		'indentAverage': Math.round(100 * indentVal / codeTime)/100,
-		'lengthAverage': Math.round(100 * lengthVal / codeTime)/100,
-		'indexAverage': Math.round(100 * indexVal / totalTime)/100
+		analysis['metaData']['indentRaw'] += indentVal;
+		analysis['metaData']['lengthRaw'] += lengthVal;
+		analysis['metaData']['additionRaw'] += data['additionTime'];
+		analysis['metaData']['deletionRaw'] += data['deletionTime'];
+		analysis['metaData']['unchangedRaw'] += data['unchangedTime'];
+		analysis['metaData']['expandedRaw'] += data['expandedTime'];
 	}
 }
 
@@ -819,6 +862,28 @@ function makeDiffBlocks(lines) {
 		blocks.push(codeBlock);
 	}
 	return blocks;
+}
+
+function finalMetaAnalysisPass(analysis) {
+	var data = analysis['metaData'];
+	for(var diff in analysis['diffs']) {
+		data['totalCommitTime'] += analysis['diffs'][diff]['gazeData']['totalTime'];
+		data['totalCodeTime'] += analysis['diffs'][diff]['gazeData']['totalCodeTime'];
+	}
+	data['commitAdditionPercentageByLines'] = Math.round(1000 * data['additionLines'] / data['totalCodeLines'])/10;
+	data['commitAdditionPercentageByLength'] = Math.round(1000 * data['additionLength'] / data['totalLength'])/10;
+	data['viewedAdditionPercentage'] = Math.round(1000 * data['additionRaw'] / data['totalCodeTime'])/10;
+	data['commitDeletionPercentageByLines'] = Math.round(1000 * data['deletionLines'] / data['totalCodeLines'])/10;
+	data['commitDeletionPercentageByLength'] = Math.round(1000 * data['deletionLength'] / data['totalLength'])/10;
+	data['viewedDeletionPercentage'] = Math.round(1000 * data['deletionRaw'] / data['totalCodeTime'])/10;
+	data['commitUnchangedPercentageByLines'] = Math.round(1000 * data['unchangedLines'] / data['totalCodeLines'])/10;
+	data['commitUnchangedPercentageByLength'] = Math.round(1000 * data['unchangedLength'] / data['totalLength'])/10;
+	data['viewedUnchangedPercentage'] = Math.round(1000 * data['unchangedRaw'] / data['totalCodeTime'])/10;
+	data['viewedExpandedPercentage'] = Math.round(1000 * data['expandedRaw'] / data['totalCodeTime'])/10;
+	data['commitAverageIndent'] = Math.round(100 * data['totalIndent'] / data['totalCodeLines'])/100;
+	data['viewedAverageIndent'] = Math.round(100 * data['indentRaw'] / data['totalCodeTime'])/100;
+	data['commitAverageLength'] = Math.round(100 * data['totalLength'] / data['totalCodeLines'])/100;
+	data['viewedAverageLength'] = Math.round(100 * data['lengthRaw'] / data['totalCodeTime'])/100;
 }
 
 function median(arr) {
