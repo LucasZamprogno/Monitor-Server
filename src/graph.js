@@ -6,7 +6,8 @@ var config = {
 	'code': 150, // Merging code lines
 	'lines': 4,
 	'dots': true,
-	'spacing': 10
+	'spacing': 10,
+	'split': false
 };
 
 const PATH_IN = './Data';
@@ -89,6 +90,7 @@ function updateConfig() {
 		var val = split[1];
 		switch(key) {
 			case 'dots':
+			case 'split':
 				if(val.toLowerCase() == 'true') {
 					config[key] = true;
 				}
@@ -181,17 +183,6 @@ function pullData(file) {
 	return data;
 }
 
-function extractDiffs(obj) {
-	return obj['type'] === 'diffs';
-}
-
-function extractLineGazes(obj) {
-	return obj.hasOwnProperty('index') && obj['type'] == 'gaze';
-}
-
-function signitifcantGazes(obj) {
-	return obj['duration'] && obj['duration'] > config['ignore'];
-}
 // This could be made more generic by making timestamp a parameter. Not sure it would ever be useful
 function sortByTimestamp(arr) {
 	arr.sort(function(a, b) {
@@ -249,53 +240,15 @@ function setupDiffs(data) {
 						'index': diff['diffIndex'],
 						'allLineDetails': diff['allLineDetails'],
 						'numLines': diff['allLineDetails'].length,
-						'newIndexMap': makeIndexMap(diff),
 						'offset': commitIndexOffset(diff['diffIndex'], diff['pageHref'])
 					};
-					modifyDiffLines(diffID(diff));
+					modifyDiffLinesAndMakeMap(diffID(diff));
 					analysis['lines'][diffID(diff)] = [];
 				}
 			}
 		}
 
 	}
-}
-
-function makeIndexMap(diff) {
-	var offset = 0;
-	var offsetTemp = 0;
-	var index = 0;
-	var lastChangeBlockIndex = 0;
-	var indexMap = {};
-	var lines = diff['allLineDetails'];
-	while(index < lines.length) {
-		while(index < lines.length && !changeLine(lines[index])) {
-			indexMap[indexKey(lines[index])] = lines[index]['index'] + offset;
-			index++;
-		}
-		// Change or end of lines
-		lastChangeBlockIndex = index;
-		while(index < lines.length && changeLine(lines[index])) {
-			if(lines[index]['change'] === 'deletion') {
-				indexMap[indexKey(lines[index])] = lines[index]['index'] + offset;
-				index++;
-				offsetTemp++;	
-			} else {
-				index++;
-			}
-		}
-		offset = offsetTemp;
-		index = lastChangeBlockIndex;
-		while(index < lines.length && changeLine(lines[index])) {
-			if(lines[index]['change'] === 'addition') {
-				indexMap[indexKey(lines[index])] = lines[index]['index'] + offset;
-				index++;
-			} else {
-				index++;
-			}
-		}
-	}
-	return indexMap;
 }
 
 function commitIndexOffset(ind, href) {
@@ -334,7 +287,76 @@ function splitToDots() {
 	}
 }
 
-function indexKey(line) {
+function processLines(data) {
+	var startTime = data[0]['timestamp'];
+	for(var line of data) {
+		if(analysis['diffs'].hasOwnProperty(diffID(line))) {
+			var offset = analysis['diffs'][diffID(line)]['offset'];
+			var obj = {
+				'start': line['timestamp'] - startTime,
+				'end': line['timestampEnd'] - startTime,
+				'change': line['change'],
+				'diffIndex': line['diffIndex'],
+				'index': line['index']
+			}
+			if(config['split']) {
+				var meta = analysis['diffs'][diffID(line)]['newIndexMap'][lineID(line)];
+				if(typeof meta === 'undefined' || meta === null) {
+					meta = -99999;
+				}
+				obj['newIndex'] = meta;
+				obj['commitIndex'] = meta + offset;
+			} else {
+				obj['newIndex'] = obj['index'];
+				obj['commitIndex'] = obj['index'] + offset;
+
+			}
+			if(line['target'] === 'Expandable line details') {
+				obj['change'] = 'expandable';
+			}
+			analysis['lines'][diffID(line)].push(obj);	
+		}
+	}
+}
+
+
+function modifyDiffLinesAndMakeMap(id) {
+	var lines = analysis['diffs'][id]['allLineDetails'];
+	analysis['diffs'][id]['newIndexMap'] = {};
+	map = analysis['diffs'][id]['newIndexMap'];
+	var diffOffset = analysis['diffs'][id]['offset'];
+	var offset = 0;
+	var i;
+	for(i = 0; i < lines.length - 1; i++) {
+		lines[i]['newIndex'] = lines[i]['index'] + offset;
+		lines[i]['commitIndex'] = lines[i]['newIndex'] + diffOffset;
+		map[lineID(lines[i])] = lines[i]['newIndex'];
+		if(lines[i]['change'] === 'deletion' && lines[i+1]['change'] === 'addition' && lines[i+1]['index'] === lines[i]['index']) {
+			offset++;
+		}
+		if(lines[i]['target'] === 'Expandable line details') {
+			lines[i]['change'] = 'expandable';
+		}
+	}
+	lines[i]['newIndex'] = lines[i]['index'] + offset;
+	lines[i]['commitIndex'] = lines[i]['newIndex'] + diffOffset;
+	map[lineID(lines[i])] = lines[i]['newIndex'];
+}
+
+
+function extractDiffs(obj) {
+	return obj['type'] === 'diffs';
+}
+
+function extractLineGazes(obj) {
+	return obj.hasOwnProperty('index') && obj['type'] == 'gaze';
+}
+
+function signitifcantGazes(obj) {
+	return obj['duration'] && obj['duration'] > config['ignore'];
+}
+
+function lineID(line) {
 	if(line['target'] === "Expandable line details") {
 		return line['index'].toString() + 'expandable'
 	}
@@ -348,42 +370,6 @@ function changeLine(line) {
 function diffID(obj) {
 	return obj['pageHref'] + '-' + obj['diffIndex'];
 }
-
-function processLines(data) {
-	var startTime = data[0]['timestamp'];
-	for(var line of data) {
-		if(analysis['diffs'].hasOwnProperty(diffID(line))) {
-			var meta = analysis['diffs'][diffID(line)]['newIndexMap'][indexKey(line)];
-			var offset = analysis['diffs'][diffID(line)]['offset']
-			if(typeof meta === 'undefined' || meta === null) {
-				meta = -99999;
-			}
-			var obj = {
-				'start': line['timestamp'] - startTime,
-				'end': line['timestampEnd'] - startTime,
-				'change': line['change'],
-				'diffIndex': line['diffIndex'],
-				'index': line['index'],
-				'newIndex': meta,
-				'commitIndex': meta + offset
-			}
-			if(line['target'] === 'Expandable line details') {
-				obj['change'] = 'expandable';
-			}
-			analysis['lines'][diffID(line)].push(obj);	
-		}
-	}
-}
-
-function modifyDiffLines(id) {
-	for(var line of analysis['diffs'][id]['allLineDetails']) {
-		line['newIndex'] = analysis['diffs'][id]['newIndexMap'][indexKey(line)];
-		if(line['target'] === 'Expandable line details') {
-			line['change'] = 'expandable';
-		}
-	}
-}
-
 
 function spanValuesToArray(line) {
 	return [line['start'], line['end'], line['change'], line['newIndex'], line['commitIndex']];
