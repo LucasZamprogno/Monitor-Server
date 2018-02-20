@@ -47,9 +47,16 @@ class CommitPlot:
         if addLine:
             plt.plot(self.xValues, self.yValues, color='#bbbbbb')
         ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
+        greenThrowaway = plt.Line2D((0, 1), (0, 0), color='#bef5cb')
+        redThrowaway = plt.Line2D((0, 1), (0, 0), color='#fdaeb7')
+        whiteThrowaway = plt.Line2D((0, 1), (0, 0), color='#ffffff')
+        blueThrowaway = plt.Line2D((0, 1), (0, 0), color='#bad4ff')
+        blackThrowaway = plt.Line2D((0, 1), (0, 0), color='#000000')
+        plt.legend([greenThrowaway, redThrowaway, whiteThrowaway, blueThrowaway, blackThrowaway],
+                   ['Addition', 'Deletion', 'Unchanged', 'Expandable', 'Diff separator'],
+                   bbox_to_anchor=(1.01, 1), loc=2, borderaxespad=0.)
         plt.xlabel('Relative timestamp (ms)')
         plt.ylabel('Diff line')
-        plt.title("Gaze position over time")
         plt.ylim(self.numRows-1, 0)
         plt.xlim(0, self.maxTimestamp)
         if show:
@@ -129,9 +136,6 @@ class DiffPlot:
         if addLine:
             plt.plot(self.xValues, self.yValues, color='#bbbbbb')
         ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
-        # greenThrowaway = plt.Line2D((0, 1), (0, 0), color='green')
-        # redThrowaway = plt.Line2D((0, 1), (0, 0), color='red')
-        # plt.legend([greenThrowaway, redThrowaway], ['Green', 'Red'])
         plt.xlabel('Relative timestamp (ms)')
         plt.ylabel('Diff line')
         plt.title("Gaze position over time")
