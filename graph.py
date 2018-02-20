@@ -46,7 +46,7 @@ class CommitPlot:
         ax.barh(range(len(self.barValues)), self.barValues, height=1, color=self.colourValues)
         if addLine:
             plt.plot(self.xValues, self.yValues, color='#bbbbbb')
-        ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
+        ax.scatter(self.xValues, self.yValues, zorder=10, s=1)
         greenThrowaway = plt.Line2D((0, 1), (0, 0), color='#bef5cb')
         redThrowaway = plt.Line2D((0, 1), (0, 0), color='#fdaeb7')
         whiteThrowaway = plt.Line2D((0, 1), (0, 0), color='#ffffff')
