@@ -10,14 +10,15 @@ parser.add_argument("--sample", help="Frequency to get data points in ms", defau
 parser.add_argument("--ignore", help="Cutoff for gaze object removal in ms", default=50, type=int)
 parser.add_argument("--merge", help="Distance in time to be considered different gazes in ms", default=200, type=int)
 args = parser.parse_args()
-path = './Data/'
+path_in = './Data/'
+path_out = './Graph/'
 
 
 def read_file():
     lines = []
-    if not args.filename.endswith(".txt"):
-        args.filename += ".txt"
-    with open(path + args.filename, 'r') as file:
+    if args.filename.endswith(".txt"):
+        args.filename = args.filename[:-4]
+    with open(path_in + args.filename + '.txt', 'r') as file:
         for line in file:
             lines.append(json.loads(line))
     return lines
@@ -90,7 +91,7 @@ class Commit:
         plt.ylabel('Diff line')
         plt.ylim(len(bar_values) - 1, 0)
         plt.xlim(0, max_timestamp)
-        plt.savefig(path + self.href + '.pdf', type='pdf')
+        plt.savefig(path_out + args.filename + '/' + self.href + '.pdf', type='pdf')
         if args.show:
             plt.show()
 
