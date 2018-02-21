@@ -240,7 +240,6 @@ function setupDiffs(data) {
 						'numLines': diff['allLineDetails'].length,
 						'offset': commitIndexOffset(diff['diffIndex'], diff['pageHref'])
 					};
-					console.log(analysis['diffs'][diffID(diff)]['offset'])
 					modifyDiffLinesAndMakeMap(diffID(diff));
 					analysis['lines'][diffID(diff)] = [];
 				}
