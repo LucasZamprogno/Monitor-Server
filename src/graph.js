@@ -3,8 +3,6 @@ var csvWriter = require('csv-write-stream');
 var config = {
 	'ignore': 50, // Remove all gazes less than this (ms) completely
 	'merge': 250, // If two gazes on the same thing are less than this (ms) apart, merge them
-	'code': 150, // Merging code lines
-	'lines': 4,
 	'dots': true,
 	'spacing': 10,
 	'split': false
@@ -242,6 +240,7 @@ function setupDiffs(data) {
 						'numLines': diff['allLineDetails'].length,
 						'offset': commitIndexOffset(diff['diffIndex'], diff['pageHref'])
 					};
+					console.log(analysis['diffs'][diffID(diff)]['offset'])
 					modifyDiffLinesAndMakeMap(diffID(diff));
 					analysis['lines'][diffID(diff)] = [];
 				}

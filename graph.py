@@ -1,165 +1,143 @@
-import matplotlib.pyplot as plt
+import argparse
+import json
 import os
-import csv
-import math
-import numpy as np
+
+parser = argparse.ArgumentParser()
+parser.add_argument("filename", help="Name of the file to graph", type=str)
+parser.add_argument("--split", "-s", help="Was the source a split diff?", action="store_true")
+parser.add_argument("--sample", help="Frequency to get data points in ms", default=10, type=int)
+parser.add_argument("--ignore", help="Cutoff for gaze object removal in ms", default=50, type=int)
+parser.add_argument("--merge", help="Distance in time to be considered different gazes in ms", default=200, type=int)
+args = parser.parse_args()
+path = './Data/'
 
 
-class CommitPlot:
-    def __init__(self, path):
-        self.path = path
-        self.diffs = []
-        self.xValues = []
-        self.yValues = []
-        self.diffRows = []
-        self.barValues = []
-        self.colourValues = []
-        self.numRows = 0
-        self.maxTimestamp = 0
-        self.barWidth = 1
-        self.dots = True  # this should be an argument
-        for diffDir in os.listdir(path):
-            if os.path.isdir(path + '/' + diffDir):
-                diff = DiffPlot(path + '/' + diffDir)
-                diff.readCSVs()
-                self.diffs.append(diff)
-                self.xValues.extend(diff.xValues)
-                self.yValues.extend(diff.commitIndices)
-                self.diffRows.extend(diff.diffRows)
-                self.diffRows.append({})
-                self.colourValues.extend(diff.colourValues)
-                self.colourValues.append('black')
-                self.numRows += diff.numRows + 1
-                if diff.maxTimestamp > self.maxTimestamp:
-                    self.maxTimestamp = diff.maxTimestamp
-        self.diffRows = self.diffRows[:-1]
-        self.diffRows = self.colourValues[:-1]
-        self.numRows -= 1
-        self.barValues = [self.maxTimestamp for _ in self.colourValues]
+def read_file():
+    lines = []
+    if not args.filename.endswith(".txt"):
+        args.filename += ".txt"
+    with open(path + args.filename, 'r') as file:
+        for line in file:
+            lines.append(json.loads(line))
+    return lines
 
-    def plotSubplots(self):
-        for diff in self.diffs:
-            diff.plot()
-
-    def plot(self):
-        fig, ax = plt.subplots()
-        ax.barh(range(len(self.barValues)), self.barValues, height=1, color=self.colourValues)
-        if addLine:
-            plt.plot(self.xValues, self.yValues, color='#bbbbbb')
-        ax.scatter(self.xValues, self.yValues, zorder=10, s=1)
-        greenThrowaway = plt.Line2D((0, 1), (0, 0), color='#bef5cb')
-        redThrowaway = plt.Line2D((0, 1), (0, 0), color='#fdaeb7')
-        whiteThrowaway = plt.Line2D((0, 1), (0, 0), color='#ffffff')
-        blueThrowaway = plt.Line2D((0, 1), (0, 0), color='#bad4ff')
-        blackThrowaway = plt.Line2D((0, 1), (0, 0), color='#000000')
-        plt.legend([greenThrowaway, redThrowaway, whiteThrowaway, blueThrowaway, blackThrowaway],
-                   ['Addition', 'Deletion', 'Unchanged', 'Expandable', 'Diff separator'],
-                   bbox_to_anchor=(1.01, 1), loc=2, borderaxespad=0.)
-        plt.xlabel('Relative timestamp (ms)')
-        plt.ylabel('Diff line')
-        plt.ylim(self.numRows-1, 0)
-        plt.xlim(0, self.maxTimestamp)
-        if show:
-            plt.show()
-        plt.savefig(self.path + '/fig.png')
-
-
-class DiffPlot:
-    def __init__(self, path):
-        self.path = path
-        self.diffRows = []
-        self.xValues = []
-        self.yValues = []
-        self.commitIndices = []
-        self.barValues = []
-        self.colourValues = []
-        self.numRows = 0
-        self.maxTimestamp = 0
-        self.barWidth = 1
-        self.dots = True  # this should be an argument
-
-    def readCSVs(self):
-        self.skip = True
-        with open(self.path + '/gazes.csv') as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if self.skip:
-                    self.skip = False
-                    continue
-                if self.dots:
-                    if int(row[0]) > self.maxTimestamp:
-                        self.maxTimestamp = int(row[0])
-                    self.xValues.append(int(row[0]))  # timestamp
-                    self.yValues.append(int(row[1]))  # index
-                    self.commitIndices.append(int(row[2]))  # commit index
-                else:
-                    if int(row[1]) > self.maxTimestamp:
-                        self.maxTimestamp = int(row[1])
-                    self.xValues.append(int(row[0]))  # start
-                    self.xValues.append(int(row[1]))  # end
-                    self.yValues.append(int(row[3]))  # index
-                    self.yValues.append(int(row[3]))  # index
-                    self.commitIndices.append(int(row[4]))  # commit index
-                    self.commitIndices.append(int(row[4]))  # commit index
-
-        self.skip = True
-        with open(self.path + '/lines.csv') as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if self.skip:
-                    self.skip = False
-                    continue
-                obj = {
-                    'index': int(row[0]),
-                    'change': row[1]
-                }
-                self.diffRows.append(obj)
-        self.numRows = len(self.diffRows)
-        self.barValues = [self.maxTimestamp for _ in self.diffRows]
-        self.colourValues = [self.colourize(x['change']) for x in self.diffRows]
-
-    def colourize(self, change):
-        if change == 'addition':
-            return '#c1e9c1'
-        elif change == 'deletion':
-            return '#f1c0c0'
-        elif change == 'unchanged':
-            return '#ffffff'
-        elif change == 'expandable':
-            return '#e9f3ff'
+def combine_gazes(list):
+    i = 0
+    j = 1
+    final = []
+    while j < len(list):
+        if list[i].should_combine(list[j]):
+            list[i].consume(list[j])
+            j += 1
         else:
-            return 'pink'
+            final.append(list[i])
+            i = j
+            j += 1
+    return final
 
-    def plot(self):
-        fig, ax = plt.subplots()
-        ax.barh(range(len(self.barValues)), self.barValues, height=1, color=self.colourValues)
-        if addLine:
-            plt.plot(self.xValues, self.yValues, color='#bbbbbb')
-        ax.scatter(self.xValues, self.yValues, zorder=10, s=2)
-        plt.xlabel('Relative timestamp (ms)')
-        plt.ylabel('Diff line')
-        plt.title("Gaze position over time")
-        plt.ylim(self.numRows-1, 0)
-        plt.xlim(0, self.maxTimestamp)
-        plt.savefig(self.path + '/fig.png')
+class Commit:
+    def __init__(self, href, diffs):
+        self.href = href
+        self.diffs = diffs
+        self.update_diffs()
+
+    def update_diffs(self):
+        self.diffs.sort(key=lambda x: int(x.index))
+        total = 0
+        for diff in self.diffs:
+            diff.offset = total
+            total += len(diff.lines) + 1  # +1 for diff separator
+
+class Diff:
+    def __init__(self, obj):
+        self.file = obj['file']
+        self.href = obj['pageHref']
+        self.index = obj['diffIndex']
+        self.lines = [Line(x) for x in obj['allLineDetails']]
+        self.id = self.href + '-' + self.index
+        self.offset = 0
+        if args.split:
+            self.make_index_map()
+
+    def make_index_map(self):
+        map = {}
+        offset = 0
+        for i in range(len(self.lines) - 1):
+            map[self.lines[i].id] = self.lines[i].index + offset
+            if (self.lines[i].type == 'deletion' and
+                    self.lines[i+1].type == 'addition' and
+                        self.lines[i].index == self.lines[i+1].index):
+                offset += 1
+        map[self.lines[i+1].id] = self.lines[i+1].index + offset  # inside loop would break conditional
+        print(map)
 
 
-def run_all():
-    for subdir in os.listdir(root):
-        print("Graphing " + subdir)
-        plot = CommitPlot(root + subdir)
-        plot.plotSubplots()
-        plot.plot()
-
-def run_only(file):
-    print("Graphing " + file)
-    plot = CommitPlot(root + file)
-    plot.plotSubplots()
-    plot.plot()
+class Gaze:
+    def __init__(self, obj):
+        self.target = obj['target']
+        self.timestamp = obj['timestamp']
+        self.timestamp_end = obj['timestampEnd']
+        self.duration = obj['duration']
+        self.domain = obj['domain']
+        self.href = obj['pageHref']
+        self.page_type = obj['pageType']
 
 
+class Line:
+    def __init__(self, obj):
+        self.index = obj['index']
+        self.file = obj['file']
+        self.text = obj['codeText']
+        self.commit_relative_index = None
+        if obj['target'] == 'Expandable line details' or \
+                        obj['target'] == 'File start marker' or \
+                        obj['target'] == 'File end marker':
+            self.type = 'expandable'
+            self.old_start = obj['oldStart']
+            self.old_end = obj['oldEnd']
+            self.new_start = obj['newStart']
+            self.new_end = obj['newEnd']
+            self.is_change = False
+        else:
 
-root = 'Graph/'
-show = True
-addLine = False  # Leave this false until the feature isn't broken
-run_only('S2')
+            self.type = obj['change']
+            self.is_change = True if self.type != 'unchanged' else False
+            self.diff_index = obj['diffIndex']
+            self.old_line_num = obj['oldLineNum']
+            self.new_line_num = obj['newLineNum']
+            self.length = obj['length']
+            self.indent = obj['indentValue']
+            self.indent_type = obj['indentType']
+        self.id = str(self.index) + '-' + self.type
+
+
+class LineGaze(Line, Gaze):
+    def __init__(self, obj):
+        Gaze.__init__(self, obj)
+        Line.__init__(self, obj)
+        self.diff_id = self.href + '-' + str(self.index)
+
+    def should_combine(self, other):
+        return (self.type == other.type and
+                self.file == other.file and
+                self.index == other.index and
+                self.href == other.href and
+                abs(self.timestamp_end - other.timestamp) < args.merge)
+
+    def consume(self, other):
+        self.timestamp_end = other.timestamp_end
+        self.duration = self.timestamp_end = self.timestamp
+
+def run():
+    jsons = read_file()
+    line_gazes = [LineGaze(x) for x in jsons if ((x['type'] == 'gaze') and ('index' in x))]
+    commits = [Commit(x['pageHref'], [Diff(y) for y in x['diffs'] if y is not None])
+               for x in jsons if x['type'] == 'diffs']
+    line_gazes.sort(key=lambda x: x.timestamp)
+    line_gazes_combined = combine_gazes(line_gazes)
+    # modify lines
+    # make data points
+    # graph
+
+
+run()
