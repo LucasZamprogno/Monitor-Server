@@ -1,6 +1,7 @@
 import argparse
 import json
 import matplotlib.pyplot as plt
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument("filename", help="Name of the file to graph", type=str)
@@ -39,8 +40,11 @@ def combine_gazes(gazes):
     return final
 
 
-def is_diff_gaze(line):
-    return (line['type'] == 'gaze') and ('index' in line) and (line['target'] != 'fileCode')
+# This will be simpler in the future
+def is_graphable(line):
+    return (line['type'] == 'gaze') and ('index' in line) \
+            and (line['target'] != 'fileCode') and ('diffIndex' in line) and \
+            ((line['change'] != 'expanded') if ('change' in line) else True)
 
 
 class Commit:
@@ -95,7 +99,10 @@ class Commit:
         plt.ylabel('Commit line')
         plt.ylim(len(bar_colors) - 1, 0)
         plt.xlim(0, max_timestamp)
-        plt.savefig(path_out + args.filename + '/' + self.href + '.pdf', type='pdf')
+        path = path_out + args.filename
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        plt.savefig(path + '/' + self.href + '.pdf', type='pdf')
         if args.show:  # Order is important, this has to be after save or it saves blank
             plt.show()
 
@@ -185,7 +192,7 @@ class LineGaze(Line, Gaze):
 
 def run():
     jsons = read_file()
-    line_gazes = [LineGaze(x) for x in jsons if is_diff_gaze(x)]
+    line_gazes = [LineGaze(x) for x in jsons if is_graphable(x)]
     # For each saved set of divs, make a commit object, containing diff objects
     commits = [Commit(x['pageHref'], [Diff(y) for y in x['diffs'] if y is not None])
                for x in jsons if x['type'] == 'diffs']
