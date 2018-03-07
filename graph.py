@@ -166,6 +166,9 @@ class Line:
                         obj['target'] == 'Expandable line button':
             self.type = 'expandable'
             self.is_change = False
+        elif obj['target'] == 'Inline diff comment':
+            self.type = 'comment'
+            self.is_change = False
         else:
             self.type = obj['change']
             self.is_change = True if self.type != 'unchanged' else False
@@ -205,7 +208,11 @@ def run():
             for diff in commit.diffs:
                 if line.href + '-' + line.diff_index == diff.id:
                     if args.split:
-                        line.commit_relative_index = diff.map[line.id]
+                        # Temp, for old data
+                        try:
+                            line.commit_relative_index = diff.map[line.id]
+                        except KeyError:
+                            line.commit_relative_index = -1
                     line.commit_relative_index += diff.offset
                     break  # Doesn't break commit loop but oh well, minor inefficiency
     # Extract the gaze points that go with each commit, graph those gazes on that commit
