@@ -102,7 +102,11 @@ class Commit:
         path = path_out + args.filename
         if not os.path.isdir(path):
             os.mkdir(path)
-        plt.savefig(path + '/' + self.href + '.pdf', type='pdf')
+        if '/' in self.href:
+            filename = self.href.split('/')[-1]
+        else:
+            filename = self.href
+        plt.savefig(path + '/' + filename + '.pdf', type='pdf')
         if args.show:  # Order is important, this has to be after save or it saves blank
             plt.show()
 
